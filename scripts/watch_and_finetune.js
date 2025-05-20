@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
 require('dotenv').config();
-const OpenAI = require('openai');
+// OpenAI 클라이언트 import 수정: default export로 가져옵니다.
+const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SAMPLES_DIR = path.resolve(__dirname, '../training_samples');
@@ -36,6 +37,7 @@ async function runFineTune() {
     purpose: 'fine-tune'
   });
   console.log(`✅ File uploaded: ${fileRes.id}`);
+
   console.log('➡️ Creating fine-tune job…');
   const ft = await openai.fineTunes.create({
     training_file: fileRes.id,
@@ -43,7 +45,7 @@ async function runFineTune() {
     suffix: SUFFIX
   });
   console.log(`▶ Job created: ${ft.id}, waiting for completion…`);
-  // 상태 폴링
+
   let status = ft.status;
   while (!['succeeded','failed'].includes(status)) {
     await new Promise(r => setTimeout(r, 30000)); // 30초 대기
@@ -51,8 +53,10 @@ async function runFineTune() {
     status = info.status;
     console.log(`… current status: ${status}`);
   }
+
   if (status === 'succeeded') {
-    const fineModel = (await openai.fineTunes.get({ fine_tune_id: ft.id })).fine_tuned_model;
+    const detail = await openai.fineTunes.get({ fine_tune_id: ft.id });
+    const fineModel = detail.fine_tuned_model;
     fs.writeFileSync(LATEST_PATH, fineModel, 'utf8');
     console.log(`✅ Fine-tune complete. New model: ${fineModel}`);
   } else {
@@ -63,9 +67,9 @@ async function runFineTune() {
 // 3) 워처 설정
 console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
 const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true });
-watcher.on('add', path => onChange(path))
-       .on('change', path => onChange(path))
-       .on('unlink', path => onChange(path));
+watcher.on('add', filePath => onChange(filePath))
+       .on('change', filePath => onChange(filePath))
+       .on('unlink', filePath => onChange(filePath));
 
 let timer = null;
 function onChange(fp) {

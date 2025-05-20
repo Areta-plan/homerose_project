@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>GPT 브랜드블로그 초안기</title>
+
+  <!-- Firebase App & Auth -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+  <script>
+    // Firebase 설정
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZLIhQi1iKuRa3u2XSQyE9aeXfh3NW4M8",
+      authDomain: "adine-d8719.firebaseapp.com",
+      projectId: "adine-d8719",
+      storageBucket: "adine-d8719.firebaseapp.com",
+      messagingSenderId: "310607550388",
+      appId: "1:310607550388:web:221f1f424eafd141e944e1",
+      measurementId: "G-299DV9WV0Z"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // 로그인 상태 변화 핸들러
+    auth.onAuthStateChanged(user => {
+      document.getElementById('login-btn').style.display = user ? 'none' : 'inline-block';
+      document.getElementById('logout-btn').style.display = user ? 'inline-block' : 'none';
+      document.getElementById('user-info').textContent = user ? `Hello, ${user.displayName}` : '';
+      if (user) loadKnowledge();
+      else document.getElementById('knowledge-list').innerHTML = '';
+    });
+
+    function login() {
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    }
+    function logout() {
+      auth.signOut();
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <h1>GPT 초안 생성기</h1>
+
+  <!-- 로그인 -->
+  <button id="login-btn" onclick="login()">Google 로그인</button>
+  <button id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
+  <div id="user-info"></div>
+
+  <!-- 1️⃣ Knowledge 리스트 -->
+  <h2>참고자료 선택</h2>
+  <div id="knowledge-list">로그인 후 자료가 표시됩니다.</div>
+
+  <!-- 파일 업로드 -->
+  <h2>추가 참고파일 (선택, 최대 3개)</h2>
+  <input type="file" id="reference-file" name="references" accept=".txt" multiple />
+  <div id="selected-files" style="margin-top:4px; color:#555;">선택된 파일 없음</div>
+
+  <!-- 2️⃣ 질문 입력 & 전송 -->
+  <h2>질문 입력</h2>
+  <textarea id="user-input" placeholder="질문을 입력하세요..." rows="4"></textarea><br/>
+  <button id="send-btn">보내기</button>
+
+  <!-- 3️⃣ 응답 표시 -->
+  <h2>응답</h2>
+  <pre id="response" style="white-space: pre-wrap;"></pre>
+
+  <!-- 외부 스크립트 로드 -->
+  <script src="script.js"></script>
+</body>
+</html>

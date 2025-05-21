@@ -15,6 +15,7 @@ console.log('openai.fineTuning.jobs.retrieve exists:', typeof openai.fineTuning?
 
 const SAMPLES_DIR = path.resolve(__dirname, '../training_samples');
 const JSONL_PATH = path.resolve(__dirname, '../training_data.jsonl');
+const TRAINING_DIR = path.resolve(__dirname, '../training_data');
 const LATEST_PATH = path.resolve(__dirname, '../latest_model.txt');
 const BASE_MODEL = 'gpt-3.5-turbo';
 const SUFFIX = 'auto';
@@ -33,6 +34,47 @@ function buildJsonl() {
   const jsonl = pairs.map(o => JSON.stringify(o)).join('\n') + '\n';
   fs.writeFileSync(JSONL_PATH, jsonl, 'utf8');
   console.log(`✅ JSONL (${pairs.length} samples) written to ${JSONL_PATH}`);
+  
+  splitJsonl();
+}
+
+// 보조: training_data.jsonl을 분할하여 섹션별 JSONL 저장
+function splitJsonl() {
+  if (!fs.existsSync(TRAINING_DIR)) {
+    fs.mkdirSync(TRAINING_DIR, { recursive: true });
+  }
+
+  const lines = fs.readFileSync(JSONL_PATH, 'utf8').trim().split('\n').filter(Boolean);
+
+  const titlePairs = [];
+  const firstPairs = [];
+  const closingPairs = [];
+
+  for (const line of lines) {
+    const obj = JSON.parse(line);
+    const prompt = obj.prompt;
+    const completion = obj.completion.replace(/\r/g, '');
+
+    const titleMatch = completion.match(/1\. 5 Compelling Titles([\s\S]*?)2\./);
+    const firstMatch = completion.match(/2\. First Paragraph(?:[^\n]*)?([\s\S]*?)3\./);
+    const closingMatch = completion.match(/5\. Emotional\/Impactful Closing([\s\S]*)$/);
+
+    if (titleMatch && titleMatch[1].trim()) {
+      titlePairs.push({ prompt, completion: titleMatch[1].trim() });
+    }
+    if (firstMatch && firstMatch[1].trim()) {
+      firstPairs.push({ prompt, completion: firstMatch[1].trim() });
+    }
+    if (closingMatch && closingMatch[1].trim()) {
+      closingPairs.push({ prompt, completion: closingMatch[1].trim() });
+    }
+  }
+
+  const toJsonl = arr => arr.map(o => JSON.stringify(o)).join('\n') + '\n';
+  fs.writeFileSync(path.join(TRAINING_DIR, 'title_samples.jsonl'), toJsonl(titlePairs), 'utf8');
+  fs.writeFileSync(path.join(TRAINING_DIR, 'first_paragraph_samples.jsonl'), toJsonl(firstPairs), 'utf8');
+  fs.writeFileSync(path.join(TRAINING_DIR, 'closing_samples.jsonl'), toJsonl(closingPairs), 'utf8');
+  console.log(`✅ Split JSONL files written to ${TRAINING_DIR}`);
 }
 
 // 2) 파일 업로드 및 파인튜닝 실행

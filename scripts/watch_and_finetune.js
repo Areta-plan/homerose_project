@@ -1,103 +1,97 @@
 // scripts/watch_and_finetune.js
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
-require('dotenv').config();
 
-// OpenAI 라이브러리 import: CommonJS 호환 처리
-let OpenAI;
-try {
-  // v4+ default export
-  OpenAI = require('openai').default;
-} catch (e1) {
-  try {
-    // Named export fallback
-    OpenAI = require('openai').OpenAI;
-  } catch (e2) {
-    console.error('OpenAI import failed:', e1, e2);
-    process.exit(1);
-  }
-}
+// OpenAI SDK v4 (CommonJS) 사용
+const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// 디버그: OpenAI 인스턴스에 fineTunes가 있는지 확인
-console.log('--- OpenAI Debug ---');
-console.log('Instance prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(openai)));
-console.log('openai.fineTunes exists:', !!openai.fineTunes);
-console.log('--------------------');
+// 메서드 존재 여부 확인
+console.log('openai.files.create exists:', typeof openai.files?.create === 'function');
+console.log('openai.fineTuning.jobs.create exists:', typeof openai.fineTuning?.jobs?.create === 'function');
+console.log('openai.fineTuning.jobs.retrieve exists:', typeof openai.fineTuning?.jobs?.retrieve === 'function');
 
 const SAMPLES_DIR = path.resolve(__dirname, '../training_samples');
-const JSONL_PATH  = path.resolve(__dirname, '../training_data.jsonl');
+const JSONL_PATH = path.resolve(__dirname, '../training_data.jsonl');
 const LATEST_PATH = path.resolve(__dirname, '../latest_model.txt');
-const BASE_MODEL  = 'gpt-3.5-turbo';
-const SUFFIX      = 'auto';
+const BASE_MODEL = 'gpt-3.5-turbo';
+const SUFFIX = 'auto';
 
-// 1) training_samples → training_data.jsonl 갱신
+// 1) 샘플 파일을 JSONL로 변환
 function buildJsonl() {
   const pairs = [];
   fs.readdirSync(SAMPLES_DIR).forEach(file => {
     if (file.endsWith('_prompt.txt')) {
-      const id = file.replace('_prompt.txt','');
-      const p = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_prompt.txt`), 'utf8');
-      const c = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_completion.txt`), 'utf8');
-      pairs.push({ prompt: p.trim(), completion: c.trim() });
+      const id = file.replace('_prompt.txt', '');
+      const prompt = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_prompt.txt`), 'utf8').trim();
+      const completion = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_completion.txt`), 'utf8').trim();
+      pairs.push({ prompt: prompt + '\n\n###\n\n', completion });
     }
   });
   const jsonl = pairs.map(o => JSON.stringify(o)).join('\n') + '\n';
-  fs.writeFileSync(JSONL_PATH, jsonl);
+  fs.writeFileSync(JSONL_PATH, jsonl, 'utf8');
   console.log(`✅ JSONL (${pairs.length} samples) written to ${JSONL_PATH}`);
 }
 
-// 2) 파인튜닝 잡 생성 & 완료 대기, 최신 모델 저장
+// 2) 파일 업로드 및 파인튜닝 실행
 async function runFineTune() {
-  if (!openai.fineTunes || typeof openai.fineTunes.create !== 'function') {
-    console.error('Error: openai.fineTunes.create is not a function');
+  if (typeof openai.files?.create !== 'function' ||
+      typeof openai.fineTuning?.jobs?.create !== 'function' ||
+      typeof openai.fineTuning?.jobs?.retrieve !== 'function') {
+    console.error('Error: required OpenAI methods are not available');
     process.exit(1);
   }
+  try {
+    console.log('➡️ Uploading training file…');
+    const fileRes = await openai.files.create({
+      file: fs.createReadStream(JSONL_PATH),
+      purpose: 'fine-tune',
+    });
+    const fileId = fileRes.id;
+    console.log(`✅ File uploaded. ID: ${fileId}`);
 
-  console.log('➡️ Uploading training file…');
-  const fileRes = await openai.files.create({ file: fs.createReadStream(JSONL_PATH), purpose: 'fine-tune' });
-  console.log(`✅ File uploaded: ${fileRes.id}`);
+    console.log('➡️ Creating fine-tune job…');
+    const ftRes = await openai.fineTuning.jobs.create({
+      training_file: fileId,
+      model: BASE_MODEL,
+      suffix: SUFFIX,
+    });
+    const job = ftRes;
+    console.log(`▶ Job created. ID: ${job.id}, status: ${job.status}`);
 
-  console.log('➡️ Creating fine-tune job…');
-  const ft = await openai.fineTunes.create({ training_file: fileRes.id, model: BASE_MODEL, suffix: SUFFIX });
-  console.log(`▶ Job created: ${ft.id}, waiting for completion…`);
+    let status = job.status;
+    while (status !== 'succeeded' && status !== 'failed') {
+      await new Promise(r => setTimeout(r, 30000));
+      const info = await openai.fineTuning.jobs.retrieve(job.id);
+      status = info.status;
+      console.log(`… current status: ${status}`);
+    }
 
-  let status = ft.status;
-  while (!['succeeded','failed'].includes(status)) {
-    await new Promise(r => setTimeout(r, 30000));
-    const info = await openai.fineTunes.get({ fine_tune_id: ft.id });
-    status = info.status;
-    console.log(`… current status: ${status}`);
-  }
-
-  if (status === 'succeeded') {
-    const detail = await openai.fineTunes.get({ fine_tune_id: ft.id });
-    const fineModel = detail.fine_tuned_model;
-    fs.writeFileSync(LATEST_PATH, fineModel, 'utf8');
-    console.log(`✅ Fine-tune complete. New model: ${fineModel}`);
-  } else {
-    console.error('❌ Fine-tune failed');
+    if (status === 'succeeded') {
+      const detail = await openai.fineTuning.jobs.retrieve(job.id);
+      const fineModel = detail.fine_tuned_model;
+      fs.writeFileSync(LATEST_PATH, fineModel, 'utf8');
+      console.log(`✅ Fine-tune complete. New model: ${fineModel}`);
+    } else {
+      console.error('❌ Fine-tune failed');
+    }
+  } catch (err) {
+    console.error('runFineTune error:', err);
   }
 }
 
-// 3) 워처 설정
+// 3) training_samples 폴더 변경 감시 및 자동 실행
 console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
-const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true });
-watcher.on('add', fp => onChange(fp))
-       .on('change', fp => onChange(fp))
-       .on('unlink', fp => onChange(fp));
-
-let timer = null;
-function onChange(fp) {
-  console.log(`📄 Change detected: ${fp}`);
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(async () => {
-    try {
-      buildJsonl();
-      await runFineTune();
-    } catch (e) {
-      console.error(e);
-    }
+const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true, awaitWriteFinish: true });
+let debounceTimer;
+function onChange(filePath) {
+  console.log(`📄 Change detected: ${filePath}`);
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    buildJsonl();
+    await runFineTune();
   }, 5000);
 }
+watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);

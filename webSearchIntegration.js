@@ -26,14 +26,13 @@ async function webSearch(query, numResults = 3) {
   }));
 }
 
-module.exports = { webSearch };
 
 
 // src/services/chatService.js
 const OpenAI = require('openai');
 const { SYSTEM_PROMPT } = require('../prompts');
 const { getTopKChunksByCategory } = require('../vectorStore');
-const { webSearch } = require('./webSearch');
+
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -102,4 +101,4 @@ ${SYSTEM_PROMPT}
   return response.choices[0].message.content;
 }
 
-module.exports = { handleBlogRequest };
+module.exports = { webSearch, handleBlogRequest };

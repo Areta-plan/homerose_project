@@ -96,30 +96,77 @@ async function loadKnowledge() {
 }
 
 // ——————————————————————————————————
-// 2) GPT 메시지 전송 로직
+// 2) 대화 저장/로드 로직
+// ——————————————————————————————————
+const convoSelect = document.getElementById('conversation-select');
+const newConvoBtn = document.getElementById('new-convo-btn');
+const chatContainer = document.getElementById('chat-container');
+
+let conversations = [];
+let currentConvoId = null;
+
+function loadConversations() {
+  const raw = localStorage.getItem('conversations');
+  conversations = raw ? JSON.parse(raw) : [];
+  if (conversations.length === 0) {
+    createNewConversation();
+  } else {
+    currentConvoId = conversations[0].id;
+  }
+}
+
+function saveConversations() {
+  localStorage.setItem('conversations', JSON.stringify(conversations));
+}
+
+function renderConversationList() {
+  convoSelect.innerHTML = conversations.map(c => `<option value="${c.id}">${c.title}</option>`).join('');
+  convoSelect.value = currentConvoId;
+}
+
+function renderChat() {
+  const convo = conversations.find(c => c.id === currentConvoId);
+  if (!convo) return;
+  chatContainer.innerHTML = convo.messages.map(m => `<div class="message ${m.role}">${m.content}</div>`).join('');
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function createNewConversation() {
+  const id = Date.now().toString();
+  const title = `대화 ${new Date().toLocaleString()}`;
+  const convo = { id, title, messages: [] };
+  conversations.unshift(convo);
+  currentConvoId = id;
+  saveConversations();
+  renderConversationList();
+  renderChat();
+}
+
+newConvoBtn.onclick = createNewConversation;
+convoSelect.onchange = () => {
+  currentConvoId = convoSelect.value;
+  renderChat();
+};
+
+// ——————————————————————————————————
+// 3) GPT 메시지 전송 로직
 // ——————————————————————————————————
 async function sendMessage() {
   if (!window.userId) {
     return alert("먼저 로그인 해주세요.");
   }
-  const input = document.getElementById("user-input").value.trim();
-  if (!input) {
+  const input = document.getElementById("user-input");
+  const text = input.value.trim();
+  if (!text) {
     return alert("질문을 입력하세요.");
   }
 
-  const responseBox = document.getElementById("response");
-  responseBox.textContent = "응답 생성 중... 잠시만 기다려주세요.";
-
-  const formData = new FormData();
-  formData.append('message', input);
-  formData.append('userId', window.userId);
-
-  // RAG용 지식 파일 전송
-  document.querySelectorAll("#knowledge-list input[type=checkbox]:checked").forEach((cb, i) => {
-    const idx = cb.getAttribute('data-idx');
-    const content = window._knowledge[idx].content;
-    formData.append('knowledgeFiles', new Blob([content], { type: 'text/plain' }), `knowledge_${i}.txt`);
-  });
+  const convo = conversations.find(c => c.id === currentConvoId);
+  if (!convo) return;
+  convo.messages.push({ role: 'user', content: text });
+  input.value = '';
+  renderChat();
+  saveConversations();
 
   // 참조 파일 첨부: 누적된 uploadedFiles 배열 사용
   uploadedFiles.forEach(file => {
@@ -127,13 +174,23 @@ async function sendMessage() {
   });
 
   try {
-    const res = await fetch("/askWithRef", { method: "POST", body: formData });
-    const json = await res.json();
-    responseBox.textContent = json.answer || `오류: ${json.error || '알 수 없음'}`;
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: convo.messages })
+    });
+    const data = await res.json();
+    convo.messages.push({ role: 'assistant', content: data.answer || `오류: ${data.error || '알 수 없음'}` });
   } catch (err) {
-    console.error("Fetch Error:", err);
-    responseBox.textContent = "서버 통신에 실패했습니다.";
+    console.error('Fetch Error:', err);
+    convo.messages.push({ role: 'assistant', content: '서버 통신에 실패했습니다.' });
   }
+    saveConversations();
+  renderChat();
 }
 
 sendBtn.onclick = sendMessage;
+
+loadConversations();
+renderConversationList();
+renderChat();

@@ -99,7 +99,8 @@ async function initializeVectorStore(apiKey) {
   }
 
   // 병렬 임베딩
-  const limitFn = pLimit;
+    // Limit the concurrency of embedding requests
+ const limitFn = pLimit(CONCURRENCY);
   const embedTasks = toEmbed.map(ci => limitFn(async () => {
     const res = await openai.embeddings.create({ model: EMBEDDING_MODEL, input: ci.text });
     return {

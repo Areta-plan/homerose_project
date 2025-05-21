@@ -9,6 +9,7 @@ const fs      = require('fs');
 const { initializeVectorStore, chunks } = require('./vectorStore');
 const askRouter  = require('./routes/ask');
 const blogRouter = require('./routes/blog');
+const chatRouter = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,6 +53,7 @@ app.get('/knowledge', (req, res) => {
 // 4) API 라우터 연결
 app.use('/ask', askRouter);
 app.use('/blog', blogRouter);
+app.use('/chat', chatRouter);
 
 // 5) 벡터 스토어 초기화 후 서버 기동
 (async () => {

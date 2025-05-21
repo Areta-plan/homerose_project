@@ -1,6 +1,7 @@
 // src/config/index.js
 const cors = require("cors");
 const path = require("path");
+const express = require("express");
 
 function initConfig(app) {
   // 1) CORS 허용 도메인 설정 (환경변수 ALLOWED_ORIGINS = "https://your.domain.com,https://...")  

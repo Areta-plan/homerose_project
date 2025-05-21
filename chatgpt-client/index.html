@@ -59,14 +59,19 @@
   <input type="file" id="reference-file" name="references" accept=".txt" multiple />
   <div id="selected-files" style="margin-top:4px; color:#555;">선택된 파일 없음</div>
 
-  <!-- 2️⃣ 질문 입력 & 전송 -->
+  <!-- 2️⃣ 대화 선택 -->
+  <h2>대화 기록</h2>
+  <select id="conversation-select"></select>
+  <button id="new-convo-btn">새 대화</button>
+
+  <!-- 3️⃣ 대화 창 -->
+  <h2>대화</h2>
+  <div id="chat-container" class="chat-box"></div>
+
+  <!-- 4️⃣ 질문 입력 & 전송 -->
   <h2>질문 입력</h2>
   <textarea id="user-input" placeholder="질문을 입력하세요..." rows="4"></textarea><br/>
   <button id="send-btn">보내기</button>
-
-  <!-- 3️⃣ 응답 표시 -->
-  <h2>응답</h2>
-  <pre id="response" style="white-space: pre-wrap;"></pre>
 
   <!-- 외부 스크립트 로드 -->
   <script src="script.js"></script>

@@ -4,7 +4,7 @@ const path = require('path');
 const OpenAI = require('openai');
 const { SYSTEM_PROMPT } = require('../prompts');
 const { getTopKChunksByCategory, getTopKChunks } = require('../vectorStore');
-// const { webSearch } = require('./webSearch'); // 활성화 시 설치 필요
+const { webSearch } = require('./webSearch');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -57,23 +57,60 @@ async function handleChatRequest(userMessage) {
 }
 
 /**
+ * 대화 히스토리 처리: /chat 엔드포인트용
+ */
+async function handleChatHistoryRequest(messages) {
+  const model = getLatestModel();
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUser) throw new Error('사용자 메시지가 필요합니다.');
+
+  const { data } = await openai.embeddings.create({
+    model: 'text-embedding-ada-002',
+    input: lastUser.content
+  });
+  const embedding = data[0].embedding;
+
+  const chunks = getTopKChunks(embedding, 3);
+  const knowledgeContext = chunks.join('\n\n');
+
+  const finalMessages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: '[Knowledge]\n' + knowledgeContext },
+    ...messages
+  ];
+
+  const resp = await openai.chat.completions.create({
+    model,
+    messages: finalMessages,
+    temperature: 0.3,
+    top_p: 0.9,
+    frequency_penalty: 0.7,
+    max_tokens: 1800
+  });
+
+  return resp.choices[0].message.content;
+}
+
+/**
  * 블로그 초안 생성: /blog 엔드포인트용
  */
 async function handleBlogRequest({ topic, mode, userParams }) {
   const model = getLatestModel();
 
-  // 웹 검색 통합 (선택)
-  // const results = await webSearch(`${topic} 최신 트렌드`, 3);
-  // const searchContext = results.map((r,i) => `${i+1}. ${r.title}\n${r.snippet}\n(${r.link})`).join('\n\n');
+  // 1) 웹 검색
+  const results = await webSearch(`${topic} 최신 트렌드`, 3);
+  const searchContext = results
+    .map((r, i) => `${i+1}. ${r.title}\n${r.snippet}\n(${r.link})`)
+    .join('\n\n');
 
-  // 1) 주제 임베딩
+  // 2) 주제 임베딩
   const qEmb = await openai.embeddings.create({
     model: 'text-embedding-ada-002',
     input: topic
   });
   const emb = qEmb.data[0].embedding;
 
-  // 2) 모듈별 RAG 컨텍스트
+  // 3) 모듈별 RAG 컨텍스트
   const titlesCtx   = getTopKChunksByCategory(emb, 'titles', 3);
   const introCtx    = getTopKChunksByCategory(emb, 'intro', 3);
   const mainKey     = mode === 'story' ? 'mainStory' : 'mainKnowledge';
@@ -83,6 +120,7 @@ async function handleBlogRequest({ topic, mode, userParams }) {
 
   console.log('---- RAG Debug (/blog) ----');
   console.log('Topic:', topic, 'Mode:', mode, 'Params:', userParams);
+  console.log('Search Context:', searchContext);
   console.log('Titles Context:', titlesCtx);
   console.log('Intro Context:', introCtx);
   console.log(`Main (${mode}) Context:`, mainCtx);
@@ -94,13 +132,16 @@ async function handleBlogRequest({ topic, mode, userParams }) {
   const systemPrompt = `
 ${SYSTEM_PROMPT}
 
+---
+[Web Search Results]\n${searchContext}
+
 1) [5 Compelling Titles 참고 자료]
 ${titlesCtx.join('\n\n')}
 
 2) [First Paragraph 참고 자료]
 ${introCtx.join('\n\n')}
 
-3) [Main Content]
+3) [Main Content (${mode}) 참고 자료]
 ${mainCtx.join('\n\n')}
 
 4) [Brand Strength Highlight]
@@ -133,4 +174,4 @@ ${closingCtx.join('\n\n')}
   return resp.choices[0].message.content;
 }
 
-module.exports = { handleChatRequest, handleBlogRequest };
+module.exports = { handleChatRequest, handleChatHistoryRequest, handleBlogRequest };

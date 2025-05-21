@@ -23,14 +23,24 @@ const SUFFIX = 'auto';
 // 1) 샘플 파일을 JSONL로 변환
 function buildJsonl() {
   const pairs = [];
-  fs.readdirSync(SAMPLES_DIR).forEach(file => {
-    if (file.endsWith('_prompt.txt')) {
-      const id = file.replace('_prompt.txt', '');
-      const prompt = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_prompt.txt`), 'utf8').trim();
-      const completion = fs.readFileSync(path.join(SAMPLES_DIR, `${id}_completion.txt`), 'utf8').trim();
-      pairs.push({ prompt: prompt + '\n\n###\n\n', completion });
-    }
-  });
+  function traverse(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        traverse(full);
+      } else if (entry.name.endsWith('_prompt.txt')) {
+        const id = entry.name.replace('_prompt.txt', '');
+        const promptPath = path.join(dir, `${id}_prompt.txt`);
+        const completionPath = path.join(dir, `${id}_completion.txt`);
+        if (fs.existsSync(completionPath)) {
+          const prompt = fs.readFileSync(promptPath, 'utf8').trim();
+          const completion = fs.readFileSync(completionPath, 'utf8').trim();
+          pairs.push({ prompt: prompt + '\n\n###\n\n', completion });
+        }
+      }
+    });
+  }
+  traverse(SAMPLES_DIR);
   const jsonl = pairs.map(o => JSON.stringify(o)).join('\n') + '\n';
   fs.writeFileSync(JSONL_PATH, jsonl, 'utf8');
   console.log(`✅ JSONL (${pairs.length} samples) written to ${JSONL_PATH}`);
@@ -125,15 +135,19 @@ async function runFineTune() {
 }
 
 // 3) training_samples 폴더 변경 감시 및 자동 실행
-console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
-const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true, awaitWriteFinish: true });
-let debounceTimer;
-function onChange(filePath) {
-  console.log(`📄 Change detected: ${filePath}`);
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(async () => {
-    buildJsonl();
-    await runFineTune();
-  }, 5000);
+if (require.main === module) {
+  console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
+  const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true, awaitWriteFinish: true });
+  let debounceTimer;
+  function onChange(filePath) {
+    console.log(`📄 Change detected: ${filePath}`);
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      buildJsonl();
+      await runFineTune();
+    }, 5000);
+  }
+  watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);
 }
-watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);
+
+module.exports = { buildJsonl, runFineTune };

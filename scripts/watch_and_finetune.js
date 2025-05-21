@@ -22,7 +22,7 @@ const SUFFIX = 'auto';
 
 // 1) 샘플 파일을 JSONL로 변환
 function buildJsonl() {
-  const pairs = [];
+  const records = [];
   function traverse(dir) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
       const full = path.join(dir, entry.name);
@@ -35,15 +35,20 @@ function buildJsonl() {
         if (fs.existsSync(completionPath)) {
           const prompt = fs.readFileSync(promptPath, 'utf8').trim();
           const completion = fs.readFileSync(completionPath, 'utf8').trim();
-          pairs.push({ prompt: prompt + '\n\n###\n\n', completion });
+          records.push({
+            messages: [
+              { role: 'user', content: prompt },
+              { role: 'assistant', content: completion }
+            ]
+          });
         }
       }
     });
   }
   traverse(SAMPLES_DIR);
-  const jsonl = pairs.map(o => JSON.stringify(o)).join('\n') + '\n';
+  const jsonl = records.map(o => JSON.stringify(o)).join('\n') + '\n';
   fs.writeFileSync(JSONL_PATH, jsonl, 'utf8');
-  console.log(`✅ JSONL (${pairs.length} samples) written to ${JSONL_PATH}`);
+  console.log(`✅ JSONL (${records.length} samples) written to ${JSONL_PATH}`);
   
   splitJsonl();
 }
@@ -62,8 +67,11 @@ function splitJsonl() {
 
   for (const line of lines) {
     const obj = JSON.parse(line);
-    const prompt = obj.prompt;
-    const completion = obj.completion.replace(/\r/g, '');
+    const messages = Array.isArray(obj.messages) ? obj.messages : [];
+    const userMsg = messages.find(m => m.role === 'user');
+    const assistMsg = messages.find(m => m.role === 'assistant');
+    const prompt = userMsg ? userMsg.content : '';
+    const completion = assistMsg ? assistMsg.content.replace(/\r/g, '') : '';
 
     const titleMatch = completion.match(/1\. 5 Compelling Titles([\s\S]*?)2\./);
     const firstMatch = completion.match(/2\. First Paragraph(?:[^\n]*)?([\s\S]*?)3\./);

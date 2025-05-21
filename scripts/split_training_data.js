@@ -14,8 +14,11 @@ const closingPairs = [];
 
 for (const line of lines) {
   const obj = JSON.parse(line);
-  const prompt = obj.prompt;
-  const completion = obj.completion.replace(/\r/g, '');
+  const messages = Array.isArray(obj.messages) ? obj.messages : [];
+  const userMsg = messages.find(m => m.role === 'user');
+  const assistMsg = messages.find(m => m.role === 'assistant');
+  const prompt = userMsg ? userMsg.content : '';
+  const completion = assistMsg ? assistMsg.content.replace(/\r/g, '') : '';
 
   const titleMatch = completion.match(/1\. 5 Compelling Titles([\s\S]*?)2\./);
   const firstMatch = completion.match(/2\. First Paragraph(?:[^\n]*)?([\s\S]*?)3\./);

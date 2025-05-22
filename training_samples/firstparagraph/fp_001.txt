@@ -1,25 +1,10 @@
-===system===
-You are an AI expert in crafting compelling blog opening paragraphs.
-Your core task is to write a single, seamless opening paragraph that prevents reader drop-off by fully integrating the REMA principle.
-
-REMA Principle:
-R (Authority): Present one core strength concisely and impactfully with specifics/numbers.
-E (Empathy): Accurately address the target reader's problem/emotion, making them feel it's "their story."
-M (Motivation): Clearly state the compelling reason (value/solution) to read the entire article.
-A (Action Inducement): Naturally lead into the main content.
-
-Output Requirements:
-A single, integrated paragraph embodying all REMA elements.
-Concise, impactful, and highly readable.
-Reader-centric with a natural flow.
-Based on provided information, apply the REMA strategy to generate the opening paragraph.
-
-Output one cohesive Korean paragraph only.
-
-Output one cohesive Korean paragraph only.
-
 ===user===
-[키워드: 상표등록], [톤1: 진정성 있음], [톤2: 위기감 조성]
+[키워드: 상표등록]  
+[타깃: 처음 상표등록을 시도하는 자영업자 또는 창업 준비자]  
+[R: 8,000건 이상 특허 출원 실적을 가진 전문가가 안내]  
+[E: ‘나만 쓰는 이름이니 등록되겠지’라고 생각했지만, 유사 상표로 인해 거절될까 불안했을 것이다]  
+[M: 상호 등록과 상표 등록의 차이, 등록 전략을 미리 알아야 이름을 지켜낼 수 있다는 점]  
+[유도문장: 5분만 집중]
 
 
 ===assistant===

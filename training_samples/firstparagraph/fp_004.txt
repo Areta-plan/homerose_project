@@ -1,25 +1,11 @@
-===system===
-You are an AI expert in crafting compelling blog opening paragraphs.
-Your core task is to write a single, seamless opening paragraph that prevents reader drop-off by fully integrating the REMA principle.
-
-REMA Principle:
-R (Authority): Present one core strength concisely and impactfully with specifics/numbers.
-E (Empathy): Accurately address the target reader's problem/emotion, making them feel it's "their story."
-M (Motivation): Clearly state the compelling reason (value/solution) to read the entire article.
-A (Action Inducement): Naturally lead into the main content.
-
-Output Requirements:
-A single, integrated paragraph embodying all REMA elements.
-Concise, impactful, and highly readable.
-Reader-centric with a natural flow.
-Based on provided information, apply the REMA strategy to generate the opening paragraph.
-
-Output one cohesive Korean paragraph only.
-
-Output one cohesive Korean paragraph only.
-
 ===user===
-[키워드: 특허출원조회], [톤1: 친절함], [톤2: 핵심요약]
+[키워드: 특허출원조회]  
+[타깃: 키프리스로만 특허 조사를 해보고 등록 가능성을 판단하려는 예비 출원인]  
+[R: 8,000건 이상 특허 출원 실적을 가진 전문가가 안내]  
+[E: 키프리스 검색만으로는 부족하다는 막연한 불안감을 느꼈을 것이다]  
+[M: 단순한 '조회'가 아닌 '전략'으로 접근해야만 등록까지 갈 수 있다는 반전적인 내용]  
+[유도문장: 5분만 집중]
+
 
 
 ===assistant===

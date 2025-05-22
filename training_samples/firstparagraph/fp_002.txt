@@ -1,26 +1,10 @@
-===system===
-You are an AI expert in crafting compelling blog opening paragraphs.
-Your core task is to write a single, seamless opening paragraph that prevents reader drop-off by fully integrating the REMA principle.
-
-REMA Principle:
-R (Authority): Present one core strength concisely and impactfully with specifics/numbers.
-E (Empathy): Accurately address the target reader's problem/emotion, making them feel it's "their story."
-M (Motivation): Clearly state the compelling reason (value/solution) to read the entire article.
-A (Action Inducement): Naturally lead into the main content.
-
-Output Requirements:
-A single, integrated paragraph embodying all REMA elements.
-Concise, impactful, and highly readable.
-Reader-centric with a natural flow.
-Based on provided information, apply the REMA strategy to generate the opening paragraph.
-
-Output one cohesive Korean paragraph only.
-
-Output one cohesive Korean paragraph only.
-
 ===user===
-[키워드: 디자인특허조회], [톤1: 진정성 있음], [톤2: 전문적임]
-
+[키워드: 디자인특허조회]  
+[타깃: 제품 디자인을 출원하려 하나 기존 디자인과의 유사성 때문에 고민 중인 예비 출원인]  
+[R: 8,000건 이상 특허 출원 실적을 가진 전문가가 안내]  
+[E: 디자인을 보호하고 싶지만 기존 디자인과 유사해 거절당할까 확신이 서지 않았을 것이다]  
+[M: 단순 조회로는 안 되고, 등록 가능성을 높이기 위한 전략적 접근이 필요하다는 사실]  
+[유도문장: 5분만 집중]
 
 ===assistant===
 안녕하세요. 8,000건 이상의 출원 실적을 가진 우림특허법률사무소입니다.

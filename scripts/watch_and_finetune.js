@@ -17,6 +17,45 @@ const SUFFIX = 'auto';
 // 1) 샘플 파일을 JSONL로 변환
 function buildJsonl() {
   const records = [];
+    function parseConversation(filePath) {
+    const text = fs.readFileSync(filePath, 'utf8');
+    const lines = text.split(/\r?\n/);
+    const messages = [];
+    let role = null;
+    let buffer = [];
+    const pushBuffer = () => {
+      if (role && buffer.length) {
+        const content = buffer.join('\n').trim();
+        if (content) messages.push({ role, content });
+      }
+      buffer = [];
+    };
+    for (const line of lines) {
+      const m = line.match(/^===(system|user|assistant)===/i);
+      if (m) {
+        pushBuffer();
+        role = m[1].toLowerCase();
+      } else {
+        buffer.push(line);
+      }
+    }
+    pushBuffer();
+    if (!messages.length) {
+      const prompt = (lines.shift() || '').trim();
+      const completion = lines.join('\n').trim();
+      if (prompt && completion) {
+        return { messages: [
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: completion }
+        ] };
+      }
+      return null;
+    }
+    const hasUser = messages.some(m => m.role === 'user');
+    const hasAssistant = messages.some(m => m.role === 'assistant');
+    return hasUser && hasAssistant ? { messages } : null;
+  }
+
   function traverse(dir) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
       const full = path.join(dir, entry.name);
@@ -36,18 +75,9 @@ function buildJsonl() {
             ]
           });
         }
-              } else if (/^fp_.*\.txt$/.test(entry.name)) {
-        const lines = fs.readFileSync(full, 'utf8').split(/\r?\n/);
-        const prompt = (lines.shift() || '').trim();
-        const completion = lines.join('\n').trim();
-        if (prompt && completion) {
-          records.push({
-            messages: [
-              { role: 'user', content: prompt },
-              { role: 'assistant', content: completion }
-            ]
-          });
-        }
+      } else if (entry.name.endsWith('.txt')) {
+        const conv = parseConversation(full);
+        if (conv) records.push(conv);
       }
     });
   }

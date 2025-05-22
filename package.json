@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build": "node scripts/watch_and_finetune.js build",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node build_jsonl.js"
   },
   "keywords": [],
   "author": "",

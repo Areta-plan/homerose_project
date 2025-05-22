@@ -5,13 +5,7 @@ const path = require('path');
 const chokidar = require('chokidar');
 
 // OpenAI SDK v4 (CommonJS) 사용
-const { OpenAI } = require('openai');
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// 메서드 존재 여부 확인
-console.log('openai.files.create exists:', typeof openai.files?.create === 'function');
-console.log('openai.fineTuning.jobs.create exists:', typeof openai.fineTuning?.jobs?.create === 'function');
-console.log('openai.fineTuning.jobs.retrieve exists:', typeof openai.fineTuning?.jobs?.retrieve === 'function');
+let openai;
 
 const SAMPLES_DIR = path.resolve(__dirname, '../training_samples');
 const JSONL_PATH = path.resolve(__dirname, '../training_data.jsonl');
@@ -35,6 +29,18 @@ function buildJsonl() {
         if (fs.existsSync(completionPath)) {
           const prompt = fs.readFileSync(promptPath, 'utf8').trim();
           const completion = fs.readFileSync(completionPath, 'utf8').trim();
+          records.push({
+            messages: [
+              { role: 'user', content: prompt },
+              { role: 'assistant', content: completion }
+            ]
+          });
+        }
+              } else if (/^fp_.*\.txt$/.test(entry.name)) {
+        const lines = fs.readFileSync(full, 'utf8').split(/\r?\n/);
+        const prompt = (lines.shift() || '').trim();
+        const completion = lines.join('\n').trim();
+        if (prompt && completion) {
           records.push({
             messages: [
               { role: 'user', content: prompt },
@@ -97,6 +103,13 @@ function splitJsonl() {
 
 // 2) 파일 업로드 및 파인튜닝 실행
 async function runFineTune() {
+    if (!openai) {
+    const { OpenAI } = require('openai');
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log('openai.files.create exists:', typeof openai.files?.create === 'function');
+    console.log('openai.fineTuning.jobs.create exists:', typeof openai.fineTuning?.jobs?.create === 'function');
+    console.log('openai.fineTuning.jobs.retrieve exists:', typeof openai.fineTuning?.jobs?.retrieve === 'function');
+  }
   if (typeof openai.files?.create !== 'function' ||
       typeof openai.fineTuning?.jobs?.create !== 'function' ||
       typeof openai.fineTuning?.jobs?.retrieve !== 'function') {
@@ -144,8 +157,16 @@ async function runFineTune() {
 
 // 3) training_samples 폴더 변경 감시 및 자동 실행
 if (require.main === module) {
+    if (process.argv.includes('build') || process.argv.includes('--build')) {
+    buildJsonl();
+    process.exit(0);
+  }
+
   console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
-  const watcher = chokidar.watch(SAMPLES_DIR, { ignoreInitial: true, awaitWriteFinish: true });
+  const watcher = chokidar.watch(SAMPLES_DIR, {
+    ignoreInitial: true,
+    awaitWriteFinish: true
+  });
   let debounceTimer;
   function onChange(filePath) {
     console.log(`📄 Change detected: ${filePath}`);

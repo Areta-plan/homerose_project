@@ -11,7 +11,9 @@ const SAMPLES_DIR = path.resolve(__dirname, '../training_samples');
 const JSONL_PATH = path.resolve(__dirname, '../training_data.jsonl');
 const TRAINING_DIR = path.resolve(__dirname, '../training_data');
 const LATEST_PATH = path.resolve(__dirname, '../latest_model.txt');
-const BASE_MODEL = 'gpt-3.5-turbo';
+// Fine-tuning now requires an explicit model version.
+// The 0125 release is generally available for fine-tuning.
+const BASE_MODEL = 'gpt-3.5-turbo-0125';
 const SUFFIX = 'auto';
 
 // 1) 샘플 파일을 JSONL로 변환
@@ -179,6 +181,14 @@ async function runFineTune() {
       console.log(`✅ Fine-tune complete. New model: ${fineModel}`);
     } else {
       console.error('❌ Fine-tune failed');
+      try {
+        const events = await openai.fineTuning.jobs.listEvents(job.id, { limit: 5 });
+        for await (const ev of events) {
+          console.log(`⚠️ ${ev.level}: ${ev.message}`);
+        }
+      } catch (e) {
+        console.error('Failed to fetch job events:', e);
+      }
     }
   } catch (err) {
     console.error('runFineTune error:', err);

@@ -136,4 +136,10 @@ function getTopKChunks(queryEmbedding, topK = 3) {
   return getTopKChunksByCategory(queryEmbedding, undefined, topK);
 }
 
-module.exports = { initializeVectorStore, getTopKChunksByCategory, getTopKChunks, chunks };
+module.exports = {
+  initializeVectorStore,
+  getTopKChunksByCategory,
+  getTopKChunks,
+  cosineSimilarity,
+  chunks
+};

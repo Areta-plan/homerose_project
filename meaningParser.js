@@ -26,10 +26,11 @@ function parseRawContentMeaningBased(raw) {
     .filter(Boolean);
 
   const firstPatterns = [
-    /혹시.*고민.*(있으신가요|있나요|있습니까)/i,
+    /혹시.*고민.*(있으신가요|있나요|이실거라|생각합니다다)/i,
     /많은 분들이.*걱정/i,
     /이 글.*클릭.*분들/i,
-    /5분만.*투자.*보세요/i
+    /5분만.*투자.*보세요/i,
+    /아마.*생각.*하고계실겁니다/i
   ];
 
   let firstparagraph = '';
@@ -48,10 +49,11 @@ function parseRawContentMeaningBased(raw) {
   }
 
   const closingPatterns = [
-    /지금 바로 연락 안 주셔도 됩니다/i,
-    /작은 선택이 미래를 바꿉니다/i,
-    /저희는 그걸로 충분합니다/i,
-    /부담 없이 연락 주세요/i,
+    /긴 글 읽어주셔서 감사합니다/i,
+    /마무리리/i,
+    /감사합니다/i,
+    /였습니다/i,
+    /편하게 연락 주세요/i,
     /꼭 지금 당장이 아니어도 괜찮습니다/i
   ];
 

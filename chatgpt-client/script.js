@@ -170,6 +170,9 @@ async function sendMessage() {
 
   const formData = new FormData();
 
+    // 기존 메시지 필드 추가
+  formData.append('messages', JSON.stringify(convo.messages));
+
   // 참조 파일 첨부: 누적된 uploadedFiles 배열 사용
   uploadedFiles.forEach(file => {
     formData.append('references', file);
@@ -178,8 +181,7 @@ async function sendMessage() {
   try {
     const res = await fetch('/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: convo.messages })
+      body: formData
     });
     const data = await res.json();
     convo.messages.push({ role: 'assistant', content: data.answer || `오류: ${data.error || '알 수 없음'}` });

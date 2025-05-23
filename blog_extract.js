@@ -13,7 +13,7 @@
 
 const fs = require('fs');           // File system utilities
 const path = require('path');       // Utility for handling file paths
-const chalk = require('chalk');     // Colored console output
+const chalk = require('chalk').default;     // Colored console output
 const mkdirp = require('mkdirp');   // Recursive directory creation
 const puppeteer = require('puppeteer'); // Headless browser for scraping
 

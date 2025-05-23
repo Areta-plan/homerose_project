@@ -59,7 +59,7 @@ async function handleChatRequest(userMessage) {
 /**
  * 대화 히스토리 처리: /chat 엔드포인트용
  */
-async function handleChatHistoryRequest(messages) {
+async function handleChatHistoryRequest(messages, references = []) {
   const model = getLatestModel();
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) throw new Error('사용자 메시지가 필요합니다.');
@@ -78,6 +78,10 @@ async function handleChatHistoryRequest(messages) {
     { role: 'system', content: '[Knowledge]\n' + knowledgeContext },
     ...messages
   ];
+
+  if (references.length > 0) {
+    console.log('[chatService] uploaded references:', references.map(f => f.originalname));
+  }
 
   const resp = await openai.chat.completions.create({
     model,

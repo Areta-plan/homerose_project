@@ -7,7 +7,7 @@ const git = simpleGit(repoDir);
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log('🔄 주기적 pull 시작…');
-    await git.pull(process.env.GITHUB_REMOTE || 'origin', process.env.GITHUB_BRANCH || 'main');
+    await git.pull(process.env.GITHUB_REMOTE || 'origin', process.env.GITHUB_BRANCH || 'master');
     console.log('✅ 원격 변경사항 로컬 반영 완료');
   } catch (e) {
     console.error('❌ pull 실패:', e.message);

@@ -1,4 +1,19 @@
 require('dotenv').config();
+const cron = require('node-cron');
+const simpleGit = require('simple-git');
+const repoDir = path.resolve(__dirname, '..');
+const git = simpleGit(repoDir);
+
+cron.schedule('*/5 * * * *', async () => {
+  try {
+    console.log('🔄 주기적 pull 시작…');
+    await git.pull(process.env.GITHUB_REMOTE || 'origin', process.env.GITHUB_BRANCH || 'main');
+    console.log('✅ 원격 변경사항 로컬 반영 완료');
+  } catch (e) {
+    console.error('❌ pull 실패:', e.message);
+  }
+});
+
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');

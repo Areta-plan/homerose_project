@@ -16,6 +16,8 @@ const path = require('path');       // Utility for handling file paths
 const chalk = require('chalk').default;     // Colored console output
 const mkdirp = require('mkdirp');   // Recursive directory creation
 const puppeteer = require('puppeteer'); // Headless browser for scraping
+const { main: runStructurizer } = require('./gpt_structurizer');
+const { main: runTagger } = require('./tagger');
 
 // Directory to store raw corpus
 const outputDir = path.join(__dirname, 'raw_corpus');

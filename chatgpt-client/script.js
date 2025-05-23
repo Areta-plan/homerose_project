@@ -168,6 +168,8 @@ async function sendMessage() {
   renderChat();
   saveConversations();
 
+  const formData = new FormData();
+
   // 참조 파일 첨부: 누적된 uploadedFiles 배열 사용
   uploadedFiles.forEach(file => {
     formData.append('references', file);

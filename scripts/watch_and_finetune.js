@@ -1,7 +1,10 @@
 require('dotenv').config();
-const cron = require('node-cron');
+const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');
+const chokidar = require('chokidar');
 const simpleGit = require('simple-git');
+
 const repoDir = path.resolve(__dirname, '..');
 const git = simpleGit(repoDir);
 
@@ -14,9 +17,6 @@ cron.schedule('*/5 * * * *', async () => {
     console.error('❌ pull 실패:', e.message);
   }
 });
-
-const fs = require('fs');
-const chokidar = require('chokidar');
 
 // OpenAI SDK v4 (CommonJS) 사용
 let openai;

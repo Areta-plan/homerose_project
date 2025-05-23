@@ -1,10 +1,7 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const cron = require('node-cron');
-const chokidar = require('chokidar');
+const path = require('path');
 const simpleGit = require('simple-git');
-
 const repoDir = path.resolve(__dirname, '..');
 const git = simpleGit(repoDir);
 
@@ -17,6 +14,9 @@ cron.schedule('*/5 * * * *', async () => {
     console.error('❌ pull 실패:', e.message);
   }
 });
+
+const fs = require('fs');h');
+const chokidar = require('chokidar');
 
 // OpenAI SDK v4 (CommonJS) 사용
 let openai;
@@ -42,90 +42,7 @@ async function syncGit() {
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
     console.error('🔧 Git 동기화 건너뜀: GITHUB_TOKEN 또는 GITHUB_REPO가 설정되지 않았습니다.');
     return;
-  }
-
-  const repoDir = path.resolve(__dirname, '..');
-  const git = simpleGit(repoDir);
-  const remoteUrl = `https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}`;
-
-  try {
-    // 원격 재설정
-    await git.removeRemote(GITHUB_REMOTE).catch(() => {});
-    await git.addRemote(GITHUB_REMOTE, remoteUrl);
-
-    // 변경사항 커밋
-    await git.add('.');
-    const commitMsg = `🔄 chore: codex auto-sync @ ${new Date().toISOString()}`;
-    await git.commit(commitMsg);
-
-    // Pull & Rebase
-    await git.pull(GITHUB_REMOTE, GITHUB_BRANCH, { '--rebase': 'true' });
-
-    // Push
-    await git.push(GITHUB_REMOTE, GITHUB_BRANCH);
-
-    console.log('✅ Codex → GitHub 동기화 완료');
-  } catch (e) {
-    console.error('❌ Git 동기화 실패:', e);
-  }
-}
-
-// 1) 샘플 파일을 JSONL로 변환
-function buildJsonl() {
-  const records = [];
-  function parseConversation(filePath) {
-    const text = fs.readFileSync(filePath, 'utf8');
-    const lines = text.split(/\r?\n/);
-    const messages = [];
-    let role = null;
-    let buffer = [];
-    const pushBuffer = () => {
-      if (role && buffer.length) {
-        const content = buffer.join('\n').trim();
-        if (content) messages.push({ role, content });
-      }
-      buffer = [];
-    };
-    for (const line of lines) {
-      const m = line.match(/^===(system|user|assistant)===/i);
-      if (m) {
-        pushBuffer();
-        role = m[1].toLowerCase();
-      } else {
-        buffer.push(line);
-      }
-    }
-    pushBuffer();
-    if (!messages.length) {
-      const prompt = (lines.shift() || '').trim();
-      const completion = lines.join('\n').trim();
-      if (prompt && completion) {
-        return { messages: [
-          { role: 'user', content: prompt },
-          { role: 'assistant', content: completion }
-        ] };
-      }
-      return null;
-    }
-    const hasUser = messages.some(m => m.role === 'user');
-    const hasAssistant = messages.some(m => m.role === 'assistant');
-    return hasUser && hasAssistant ? { messages } : null;
-  }
-
-  function traverse(dir) {
-    fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        traverse(full);
-      } else if (entry.name.endsWith('_prompt.txt')) {
-        const id = entry.name.replace('_prompt.txt', '');
-        const promptPath = path.join(dir, `${id}_prompt.txt`);
-        const completionPath = path.join(dir, `${id}_completion.txt`);
-        if (fs.existsSync(completionPath)) {
-          const prompt = fs.readFileSync(promptPath, 'utf8').trim();
-          const completion = fs.readFileSync(completionPath, 'utf8').trim();
-          records.push({
-            messages: [
+@@ -130,84 +129,84 @@ function buildJsonl() {
               { role: 'user', content: prompt },
               { role: 'assistant', content: completion }
             ]
@@ -177,14 +94,15 @@ function splitJsonl() {
             { role: 'assistant', content: text }
           ]
         });
-      });
+      }
     }
-        const jsonl = records.map(r => JSON.stringify(r)).join('\n');
+    const jsonl = records.map(r => JSON.stringify(r)).join('\n');
     const outPath = path.join(TRAINING_DIR, `${section}_samples.jsonl`);
     fs.writeFileSync(outPath, jsonl + (records.length ? '\n' : ''), 'utf8');
   }
 
   console.log(`✅ Section JSONL files written to ${TRAINING_DIR}`);
+}
 
 // 2) 파일 업로드 및 파인튜닝 실행
 async function runFineTune() {
@@ -209,68 +127,3 @@ async function runFineTune() {
     });
     const fileId = fileRes.id;
     console.log(`✅ File uploaded. ID: ${fileId}`);
-
-    console.log('➡️ Creating fine-tune job…');
-    const ftRes = await openai.fineTuning.jobs.create({
-      training_file: fileId,
-      model: BASE_MODEL,
-      suffix: SUFFIX,
-    });
-    const job = ftRes;
-    console.log(`▶ Job created. ID: ${job.id}, status: ${job.status}`);
-
-    let status = job.status;
-    while (status !== 'succeeded' && status !== 'failed') {
-      await new Promise(r => setTimeout(r, 30000));
-      const info = await openai.fineTuning.jobs.retrieve(job.id);
-      status = info.status;
-      console.log(`… current status: ${status}`);
-    }
-
-    if (status === 'succeeded') {
-      const detail = await openai.fineTuning.jobs.retrieve(job.id);
-      const fineModel = detail.fine_tuned_model;
-      fs.writeFileSync(LATEST_PATH, fineModel, 'utf8');
-      console.log(`✅ Fine-tune complete. New model: ${fineModel}`);
-    } else {
-      console.error('❌ Fine-tune failed');
-      try {
-        const events = await openai.fineTuning.jobs.listEvents(job.id, { limit: 5 });
-        for await (const ev of events) {
-          console.log(`⚠️ ${ev.level}: ${ev.message}`);
-        }
-      } catch (e) {
-        console.error('Failed to fetch job events:', e);
-      }
-    }
-  } catch (err) {
-    console.error('runFineTune error:', err);
-  }
-}
-
-// 3) training_samples 폴더 변경 감시 및 자동 실행
-if (require.main === module) {
-  if (process.argv.includes('build') || process.argv.includes('--build')) {
-    buildJsonl();
-    process.exit(0);
-  }
-
-  console.log(`🔍 Watching ${SAMPLES_DIR} for changes…`);
-  const watcher = chokidar.watch(SAMPLES_DIR, {
-    ignoreInitial: true,
-    awaitWriteFinish: true
-  });
-  let debounceTimer;
-  function onChange(filePath) {
-    console.log(`📄 Change detected: ${filePath}`);
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-      buildJsonl();
-      await runFineTune();
-      await syncGit();
-    }, 5000);
-  }
-  watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);
-}
-
-module.exports = { buildJsonl, runFineTune, syncGit };

@@ -44,16 +44,21 @@ async function handleChatRequest(userMessage) {
     { role: 'system', content: '[Knowledge]\n' + knowledgeContext },
     { role: 'user',   content: userMessage }
   ];
-  const resp = await openai.chat.completions.create({
-    model,
-    messages,
-    temperature: 0.3,
-    top_p: 0.9,
-    frequency_penalty: 0.7,
-    max_tokens: 1800
-  });
-
-  return resp.choices[0].message.content;
+  console.log('Final Messages (/ask):', messages);
+  try {
+    const resp = await openai.chat.completions.create({
+      model,
+      messages,
+      temperature: 0.3,
+      top_p: 0.9,
+      frequency_penalty: 0.7,
+      max_tokens: 1800
+    });
+    return resp.choices[0].message.content;
+  } catch (err) {
+    console.error('[/ask] OpenAI call failed:', err);
+    throw new Error('OpenAI 응답 생성 중 오류가 발생했습니다.');
+  }
 }
 
 /**
@@ -83,16 +88,21 @@ async function handleChatHistoryRequest(messages, references = []) {
     console.log('[chatService] uploaded references:', references.map(f => f.originalname));
   }
 
-  const resp = await openai.chat.completions.create({
-    model,
-    messages: finalMessages,
-    temperature: 0.3,
-    top_p: 0.9,
-    frequency_penalty: 0.7,
-    max_tokens: 1800
-  });
-
-  return resp.choices[0].message.content;
+  try {
+    console.log('Final Messages (/chat):', finalMessages);
+    const resp = await openai.chat.completions.create({
+      model,
+      messages: finalMessages,
+      temperature: 0.3,
+      top_p: 0.9,
+      frequency_penalty: 0.7,
+      max_tokens: 1800
+    });
+    return resp.choices[0].message.content;
+  } catch (err) {
+    console.error('[/chat] OpenAI call failed:', err);
+    throw new Error('대화 응답 생성 중 오류가 발생했습니다.');
+  }
 }
 
 /**
@@ -163,19 +173,23 @@ ${closingCtx.join('\n\n')}
 `.trim();
 
   // 4) GPT 호출
-  const resp = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user',   content: `주제: ${topic}\n추가 파라미터: ${userParams}` }
-    ],
-    temperature: 0.25,
-    top_p: 0.8,
-    frequency_penalty: 0.7,
-    max_tokens: 5000
-  });
-
-  return resp.choices[0].message.content;
+  try {
+    const resp = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: `주제: ${topic}\n추가 파라미터: ${userParams}` }
+      ],
+      temperature: 0.25,
+      top_p: 0.8,
+      frequency_penalty: 0.7,
+      max_tokens: 5000
+    });
+    return resp.choices[0].message.content;
+  } catch (err) {
+    console.error('[/blog] OpenAI call failed:', err);
+    throw new Error('블로그 초안 생성 중 오류가 발생했습니다.');
+  }
 }
 
 module.exports = { handleChatRequest, handleChatHistoryRequest, handleBlogRequest };

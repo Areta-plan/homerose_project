@@ -1,4 +1,16 @@
 // src/prompts.js
+const fs = require('fs');
+const path = require('path');
+
+const titlePrompt = fs.readFileSync(
+  path.resolve(__dirname, 'system_prompts/title_system.txt'),
+  'utf8'
+);
+const firstParagraphPrompt = fs.readFileSync(
+  path.resolve(__dirname, 'system_prompts/first_paragraph_system.txt'),
+  'utf8'
+);
+
 const SYSTEM_PROMPT = `
 You are a multi-role copywriter AI assistant.
 You are a writer who writes Naver blogs for advertisers at a marketing agency.

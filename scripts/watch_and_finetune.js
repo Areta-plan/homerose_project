@@ -1,8 +1,8 @@
-// scripts/watch_and_finetune.js
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
+const simpleGit = require('simple-git');
 
 // OpenAI SDK v4 (CommonJS) 사용
 let openai;
@@ -16,10 +16,50 @@ const LATEST_PATH = path.resolve(__dirname, '../latest_model.txt');
 const BASE_MODEL = 'gpt-3.5-turbo-0125';
 const SUFFIX = 'auto';
 
+// Git 동기화를 위한 함수
+async function syncGit() {
+  const {
+    GITHUB_TOKEN,
+    GITHUB_REPO,
+    GITHUB_REMOTE = 'origin',
+    GITHUB_BRANCH = 'main'
+  } = process.env;
+
+  if (!GITHUB_TOKEN || !GITHUB_REPO) {
+    console.error('🔧 Git 동기화 건너뜀: GITHUB_TOKEN 또는 GITHUB_REPO가 설정되지 않았습니다.');
+    return;
+  }
+
+  const repoDir = path.resolve(__dirname, '..');
+  const git = simpleGit(repoDir);
+  const remoteUrl = `https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}`;
+
+  try {
+    // 원격 재설정
+    await git.removeRemote(GITHUB_REMOTE).catch(() => {});
+    await git.addRemote(GITHUB_REMOTE, remoteUrl);
+
+    // 변경사항 커밋
+    await git.add('.');
+    const commitMsg = `🔄 chore: codex auto-sync @ ${new Date().toISOString()}`;
+    await git.commit(commitMsg);
+
+    // Pull & Rebase
+    await git.pull(GITHUB_REMOTE, GITHUB_BRANCH, { '--rebase': 'true' });
+
+    // Push
+    await git.push(GITHUB_REMOTE, GITHUB_BRANCH);
+
+    console.log('✅ Codex → GitHub 동기화 완료');
+  } catch (e) {
+    console.error('❌ Git 동기화 실패:', e);
+  }
+}
+
 // 1) 샘플 파일을 JSONL로 변환
 function buildJsonl() {
   const records = [];
-    function parseConversation(filePath) {
+  function parseConversation(filePath) {
     const text = fs.readFileSync(filePath, 'utf8');
     const lines = text.split(/\r?\n/);
     const messages = [];
@@ -135,7 +175,7 @@ function splitJsonl() {
 
 // 2) 파일 업로드 및 파인튜닝 실행
 async function runFineTune() {
-    if (!openai) {
+  if (!openai) {
     const { OpenAI } = require('openai');
     openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     console.log('openai.files.create exists:', typeof openai.files?.create === 'function');
@@ -197,7 +237,7 @@ async function runFineTune() {
 
 // 3) training_samples 폴더 변경 감시 및 자동 실행
 if (require.main === module) {
-    if (process.argv.includes('build') || process.argv.includes('--build')) {
+  if (process.argv.includes('build') || process.argv.includes('--build')) {
     buildJsonl();
     process.exit(0);
   }
@@ -214,9 +254,10 @@ if (require.main === module) {
     debounceTimer = setTimeout(async () => {
       buildJsonl();
       await runFineTune();
+      await syncGit();
     }, 5000);
   }
   watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);
 }
 
-module.exports = { buildJsonl, runFineTune };
+module.exports = { buildJsonl, runFineTune, syncGit };

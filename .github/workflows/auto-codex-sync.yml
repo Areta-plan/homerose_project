@@ -1,57 +1,59 @@
 # .github/workflows/auto-codex-sync.yml
-name: Auto Codex Sync
+name: Auto Codex & GitHub Sync
 
 on:
   push:
     paths:
       - 'training_samples/**'
       - 'scripts/watch_and_finetune.js'
+      - '**/*.js'
+      - '**/*.jsonl'
   schedule:
-    - cron: '*/15 * * * *'  # 15분마다 실행
+    - cron: '*/15 * * * *'  # every 15 minutes
 
 permissions:
-  contents: write  # 커밋·푸시 권한
+  contents: write         # allow commit & push
+
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_REPO:     ${{ github.repository }}
+  GITHUB_REMOTE:   origin
+  GITHUB_BRANCH:   master  # or your default branch
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 리포지터리 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true   # use ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. .env 파일에서 환경 변수 로드
-      - name: Load .env into environment
-        run: |
-          echo "▶ Loading .env into GITHUB_ENV"
-          grep -v '^\s*#' .env | grep -v '^\s*$' \
-            | sed 's/ *= */=/' \
-            | while IFS='=' read -r key val; do
-                echo "$key=$val" >> $GITHUB_ENV
-              done
-
-      # 3. Node.js 설치
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '22.x'
 
-      # 4. 의존성 설치
       - name: Install dependencies
         run: npm ci
 
-      # 5. JSONL 빌드, 파인튜닝, Git 자동 동기화
-      - name: Build → Fine-Tune → Git Sync
+      - name: Build JSONL & Fine-tune
         run: |
-          # JSONL 생성
           node scripts/watch_and_finetune.js --build
-          # 파인튜닝 실행
           node -e "require('./scripts/watch_and_finetune').runFineTune()"
-          # Git 동기화
-          node -e "require('./scripts/watch_and_finetune').syncGit()"
         env:
-          # .env에서 로드된 변수들
           OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
-          GITHUB_TOKEN:    ${{ env.GITHUB_TOKEN }}
-          GITHUB_REPO:     ${{ env.GITHUB_REPO }}
+
+      - name: Commit & Push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "🔄 Auto-sync from Codex @ $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git push ${{ env.GITHUB_REMOTE }} ${{ env.GITHUB_BRANCH }}
+          else
+            echo "✔ No changes to commit"
+          fi

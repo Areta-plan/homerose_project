@@ -6,7 +6,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mkdirp = require('mkdirp');
-const chalk = require('chalk').default;
+const chalk = require('chalk');
+const chokidar = require('chokidar');
 const { OpenAI } = require('openai');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -130,6 +131,28 @@ async function main() {
   console.log(chalk.blue(`Finished. Success: ${success} / ${files.length}`));
 }
 
-main().catch(err => {
-  console.error('Unexpected error:', err);
-});
+async function watchMode() {
+  let index = getNextIndex();
+  console.log(chalk.blue('Watching for new .txt files in raw_corpus...'));
+  const watcher = chokidar.watch(path.join(RAW_DIR, '*.txt'), {
+    ignoreInitial: true
+  });
+
+  watcher.on('add', async filePath => {
+    const file = path.basename(filePath);
+    const ok = await processFile(file, index);
+    if (ok) {
+      index++;
+      fs.unlink(filePath, () => {});
+    }
+  });
+}
+
+const args = process.argv.slice(2);
+if (args.includes('--watch')) {
+  watchMode().catch(err => console.error('Unexpected error:', err));
+} else {
+  main().catch(err => {
+    console.error('Unexpected error:', err);
+  });
+}

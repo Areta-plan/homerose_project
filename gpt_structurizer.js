@@ -163,4 +163,8 @@ function main() {
   for (const f of jsonFiles) processJsonFile(f);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main };

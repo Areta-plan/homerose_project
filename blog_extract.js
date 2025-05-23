@@ -175,8 +175,16 @@ async function main() {
   console.log(
     chalk.blue(`\nProcessed ${urls.length} URLs -> Success: ${success}, Failed: ${fail}`)
   );
+  
+  // Automatically run structuring and tagging steps
+  runStructurizer();
+  await runTagger();
 }
 
-main().catch(err => {
-  console.error(chalk.red('Unexpected error:'), err);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error(chalk.red('Unexpected error:'), err);
+  });
+}
+
+module.exports = { main };

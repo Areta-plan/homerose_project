@@ -78,7 +78,14 @@ async function initializeVectorStore(apiKey) {
   const toEmbed = [];
 
   // 모듈(폴더)별 파일 순회
-  const modules = fs.readdirSync(KNOWLEDGE_DIR).filter(d => fs.statSync(path.join(KNOWLEDGE_DIR, d)).isDirectory());
+  if (!fs.existsSync(KNOWLEDGE_DIR)) {
+    console.warn('[vectorStore] knowledge directory not found, skipping.');
+    chunks = [];
+    saveCache({ fileHashes: {}, chunks });
+    return;
+  }
+  const modules = fs.readdirSync(KNOWLEDGE_DIR).filter(d =>
+    fs.statSync(path.join(KNOWLEDGE_DIR, d)).isDirectory());
   for (const mod of modules) {
     const dirPath = path.join(KNOWLEDGE_DIR, mod);
     const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.txt'));

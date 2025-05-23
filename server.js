@@ -5,7 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
-const fs      = require('fs');
 
 const { initializeVectorStore, chunks } = require('./vectorStore');
 const askRouter  = require('./routes/ask');
@@ -27,28 +26,6 @@ app.use(express.static(clientDir));
 // (선택) 루트 경로에서 index.html 제공
 app.get('/', (req, res) => {
   res.sendFile(path.join(clientDir, 'index.html'));
-});
-
-// 3) 참고자료 제공 엔드포인트
-const KNOWLEDGE_DIR = path.join(__dirname, 'knowledge');
-app.get('/knowledge', (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) {
-    return res.status(401).json({ error: '로그인 후 이용하세요.' });
-  }
-  fs.readdir(KNOWLEDGE_DIR, (err, files) => {
-    if (err) {
-      console.error('Knowledge list error:', err);
-      return res.status(500).json({ error: '참고자료 목록을 불러올 수 없습니다.' });
-    }
-    const knowledge = files
-      .filter(f => f.endsWith('.txt'))
-      .map(f => ({
-        name: f,
-        content: fs.readFileSync(path.join(KNOWLEDGE_DIR, f), 'utf8')
-      }));
-    res.json({ knowledge });
-  });
 });
 
 // 4) API 라우터 연결

@@ -1,3 +1,16 @@
+// [PCT 국제출원], [특허], [Warning], [Specificity]
+[카페상표특허], [특허], [Threat], [Warning]
+[의견제출통지서], [특허], [Threat], [Warning]
+[상표권존속기간], [특허], [Threat], [Specificity]
+[전용실시권], [특허], [Threat], [Warning]
+[표준특허], [특허], [Curiosity], [Warning]
+[특허사용료], [특허], [Gain], [Specificity]
+[실용신안], [특허], [Reversal], [Warning]
+[특허출원조회], [특허], [Reversal], [Curiosity]
+[분할출원], [특허], [Threat], [Warning]
+[디자인특허조회], [특허], [Reversal], [Specificity]
+[가게상호등록], [특허], [Threat], [Warning]
+[통상실시권], [특허], [Threat], [Specificity]
 ===user===
 [Keyword]: PCT 국제출원  
 [Intent]: 국제출원 전에 꼭 알아야 할 중요 포인트 찾는 사람  

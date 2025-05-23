@@ -1,5 +1,6 @@
 require('dotenv').config();
 const cron = require('node-cron');
+const path = require('path');
 const simpleGit = require('simple-git');
 const repoDir = path.resolve(__dirname, '..');
 const git = simpleGit(repoDir);
@@ -15,9 +16,7 @@ cron.schedule('*/5 * * * *', async () => {
 });
 
 const fs = require('fs');
-const path = require('path');
 const chokidar = require('chokidar');
-const simpleGit = require('simple-git');
 
 // OpenAI SDK v4 (CommonJS) 사용
 let openai;
@@ -152,40 +151,40 @@ function splitJsonl() {
     fs.mkdirSync(TRAINING_DIR, { recursive: true });
   }
 
-  const lines = fs.readFileSync(JSONL_PATH, 'utf8').trim().split('\n').filter(Boolean);
+  const mapping = {
+    title: { dir: 'title', prompt: '다음에 대한 타이틀을 작성해줘' },
+    first_paragraph: { dir: 'firstparagraph', prompt: '다음에 대한 첫 문단을 작성해줘' },
+    closing: { dir: 'closing', prompt: '다음 내용을 감정적으로 마무리해줘' }
+  };
 
-  const titlePairs = [];
-  const firstPairs = [];
-  const closingPairs = [];
-
-  for (const line of lines) {
-    const obj = JSON.parse(line);
-    const messages = Array.isArray(obj.messages) ? obj.messages : [];
-    const userMsg = messages.find(m => m.role === 'user');
-    const assistMsg = messages.find(m => m.role === 'assistant');
-    const prompt = userMsg ? userMsg.content : '';
-    const completion = assistMsg ? assistMsg.content.replace(/\r/g, '') : '';
-
-    const titleMatch = completion.match(/1\. 5 Compelling Titles([\s\S]*?)2\./);
-    const firstMatch = completion.match(/2\. First Paragraph(?:[^\n]*)?([\s\S]*?)3\./);
-    const closingMatch = completion.match(/5\. Emotional\/Impactful Closing([\s\S]*)$/);
-
-    if (titleMatch && titleMatch[1].trim()) {
-      titlePairs.push({ prompt, completion: titleMatch[1].trim() });
+  for (const [section, info] of Object.entries(mapping)) {
+    const sectionDir = path.join(SAMPLES_DIR, info.dir);
+    const records = [];
+    if (fs.existsSync(sectionDir)) {
+      const files = fs.readdirSync(sectionDir).filter(f => f.endsWith('.txt'));
+      for (const file of files) {
+        const full = path.join(sectionDir, file);
+        let text = fs.readFileSync(full, 'utf8');
+        const idx = text.indexOf('===assistant===');
+        if (idx >= 0) {
+          text = text.substring(idx + '===assistant==='.length);
+        }
+        text = text.trim();
+        if (!text) continue;
+        records.push({
+          messages: [
+            { role: 'user', content: info.prompt },
+            { role: 'assistant', content: text }
+          ]
+        });
+      }
     }
-    if (firstMatch && firstMatch[1].trim()) {
-      firstPairs.push({ prompt, completion: firstMatch[1].trim() });
-    }
-    if (closingMatch && closingMatch[1].trim()) {
-      closingPairs.push({ prompt, completion: closingMatch[1].trim() });
-    }
+    const jsonl = records.map(r => JSON.stringify(r)).join('\n');
+    const outPath = path.join(TRAINING_DIR, `${section}_samples.jsonl`);
+    fs.writeFileSync(outPath, jsonl + (records.length ? '\n' : ''), 'utf8');
   }
 
-  const toJsonl = arr => arr.map(o => JSON.stringify(o)).join('\n') + '\n';
-  fs.writeFileSync(path.join(TRAINING_DIR, 'title_samples.jsonl'), toJsonl(titlePairs), 'utf8');
-  fs.writeFileSync(path.join(TRAINING_DIR, 'first_paragraph_samples.jsonl'), toJsonl(firstPairs), 'utf8');
-  fs.writeFileSync(path.join(TRAINING_DIR, 'closing_samples.jsonl'), toJsonl(closingPairs), 'utf8');
-  console.log(`✅ Split JSONL files written to ${TRAINING_DIR}`);
+  console.log(`✅ Section JSONL files written to ${TRAINING_DIR}`);
 }
 
 // 2) 파일 업로드 및 파인튜닝 실행

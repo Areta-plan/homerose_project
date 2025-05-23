@@ -104,6 +104,11 @@ async function processFile(file, index) {
   const inputPath = path.join(RAW_DIR, file);
   const raw = fs.readFileSync(inputPath, 'utf8');
 
+    if (!raw.trim()) {
+    console.log(chalk.red(`❌ Empty content: ${file}`));
+    return false;
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
@@ -115,7 +120,10 @@ async function processFile(file, index) {
 
     const content = resp.choices[0].message.content.trim();
     const sections = parseSections(content);
-    if (!sections) throw new Error('GPT output parsing failed');
+    if (!sections) {
+      console.log(chalk.red(`❌ No recognizable sections: ${file}`));
+      return false;
+    }
 
     writeSection('title', index, sections.title);
     writeSection('firstParagraph', index, sections.firstParagraph);
@@ -129,7 +137,7 @@ async function processFile(file, index) {
   } catch (err) {
     const errFile = path.join(ERR_DIR, `${path.parse(file).name}.log`);
     fs.writeFileSync(errFile, err.stack || err.message, 'utf8');
-    console.error(chalk.red(`Failed ${file}: ${err.message}`));
+    console.error(chalk.red(`❌ Exception while parsing ${file}: ${err.message}`));
     return false;
   }
 }

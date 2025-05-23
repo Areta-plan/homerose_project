@@ -6,7 +6,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mkdirp = require('mkdirp');
-const chalk = require('chalk').default;
+const chalk = require('chalk');
 const chokidar = require('chokidar');
 const { OpenAI } = require('openai');
 
@@ -111,11 +111,8 @@ async function processFile(file, index) {
 }
 
 async function main() {
+  const watchMode = process.argv.includes('--watch');
   const files = fs.readdirSync(RAW_DIR).filter(f => f.endsWith('.txt'));
-  if (files.length === 0) {
-    console.log(chalk.yellow('No raw files found.'));
-    return;
-  }
 
   let success = 0;
   let index = getNextIndex();
@@ -125,34 +122,34 @@ async function main() {
     if (ok) {
       success++;
       index++;
+      fs.unlinkSync(path.join(RAW_DIR, f));
     }
   }
 
-  console.log(chalk.blue(`Finished. Success: ${success} / ${files.length}`));
-}
+  if (!watchMode) {
+    if (files.length === 0) {
+      console.log(chalk.yellow('No raw files found.'));
+    }
+    console.log(chalk.blue(`Finished. Success: ${success} / ${files.length}`));
+    return;
+  }
 
-async function watchMode() {
-  let index = getNextIndex();
-  console.log(chalk.blue('Watching for new .txt files in raw_corpus...'));
-  const watcher = chokidar.watch(path.join(RAW_DIR, '*.txt'), {
-    ignoreInitial: true
-  });
-
+  console.log(chalk.blue(`Initial run complete. Success: ${success} / ${files.length}`));
+  console.log(chalk.cyan('Watching raw_corpus for new files...'));
+  const watcher = chokidar.watch(RAW_DIR, { ignoreInitial: true, awaitWriteFinish: true });
   watcher.on('add', async filePath => {
+    if (!filePath.endsWith('.txt')) return;
     const file = path.basename(filePath);
     const ok = await processFile(file, index);
     if (ok) {
       index++;
-      fs.unlink(filePath, () => {});
+      fs.unlink(filePath, err => {
+        if (err) console.error(`Failed to remove ${file}:`, err.message);
+      });
     }
   });
 }
 
-const args = process.argv.slice(2);
-if (args.includes('--watch')) {
-  watchMode().catch(err => console.error('Unexpected error:', err));
-} else {
-  main().catch(err => {
-    console.error('Unexpected error:', err);
-  });
-}
+main().catch(err => {
+  console.error('Unexpected error:', err);
+});

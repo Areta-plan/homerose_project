@@ -49,7 +49,6 @@ Follow this exact structure for your output:
 형식: [키워드] + [제목] (사용자 제시 키워드 우선)
 제목 길이: 공백 제외 25자 이내
 수량: 후보 5개
-'제목 카피라이팅 가이드' 파일을 참고하세요
 
 2. **First Paragraph**  
 [역할]
@@ -160,8 +159,6 @@ SEO: 타겟 키워드 자연스럽게 포함.
 
 5. **Emotional/Impactful Closing**  
    - Wrap up with a persuasive or warm ending, prompting action or reflection.
-업종마다 다르지만, 지식의 '끝 마무리 멘트 가이드' 파일을 참고해주세요.
-
 [역할]
 이 영역은 블로그 감성 마무리 전문입니다. 글의 마지막에서 독자의 마음에 따뜻한 울림과 브랜드 신뢰를 남기는 역할을 합니다.
 

@@ -7,30 +7,31 @@ on:
       - 'training_samples/**'
       - 'scripts/watch_and_finetune.js'
   schedule:
-    - cron: '*/15 * * * *'  # 15분마다 한 번씩
+    - cron: '*/15 * * * *'  # 15분마다 실행
 
 permissions:
-  contents: write  # 워크플로에서 커밋·푸시 허용
+  contents: write  # 커밋·푸시 권한
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 코드를 체크아웃
+      # 1. 리포지터리 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. .env 파일에 담긴 변수들을 GitHub 환경 변수로 로드
-      - name: Load .env
+      # 2. .env 파일에서 환경 변수 로드
+      - name: Load .env into environment
         run: |
-          echo "▶ Loading .env into environment"
-          # 주석(#)과 빈 줄은 무시하고, KEY=VALUE 형식만 GITHUB_ENV에 추가
-          grep -v '^\s*#' .env | grep -v '^\s*$' | while IFS='=' read -r key val; do
-            echo "$key=$val" >> $GITHUB_ENV
-          done
+          echo "▶ Loading .env into GITHUB_ENV"
+          grep -v '^\s*#' .env | grep -v '^\s*$' \
+            | sed 's/ *= */=/' \
+            | while IFS='=' read -r key val; do
+                echo "$key=$val" >> $GITHUB_ENV
+              done
 
-      # 3. Node.js 셋업
+      # 3. Node.js 설치
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -40,12 +41,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 5. JSONL 빌드 & 파인튜닝 & Git 동기화
-      - name: Build, fine-tune & Git sync
+      # 5. JSONL 빌드, 파인튜닝, Git 자동 동기화
+      - name: Build → Fine-Tune → Git Sync
         run: |
-          # JSONL 빌드
+          # JSONL 생성
           node scripts/watch_and_finetune.js --build
           # 파인튜닝 실행
           node -e "require('./scripts/watch_and_finetune').runFineTune()"
-          # GitHub 자동 커밋·푸시
+          # Git 동기화
           node -e "require('./scripts/watch_and_finetune').syncGit()"
+        env:
+          # .env에서 로드된 변수들
+          OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+          GITHUB_TOKEN:    ${{ env.GITHUB_TOKEN }}
+          GITHUB_REPO:     ${{ env.GITHUB_REPO }}

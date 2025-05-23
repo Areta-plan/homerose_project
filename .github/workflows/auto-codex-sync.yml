@@ -1,0 +1,43 @@
+name: Auto Codex Sync
+
+on:
+  push:
+    paths:
+      - 'training_samples/**'
+      - 'scripts/watch_and_finetune.js'
+  schedule:
+    - cron: '*/15 * * * *'  # 15분마다 동기화
+
+permissions:
+  contents: write  # 커밋·푸시 권한
+
+jobs:
+  build-and-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build JSONL & Fine-tune
+        run: node scripts/watch_and_finetune.js --build
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run full sync (build + fine-tune + git)
+        run: node scripts/watch_and_finetune.js
+        env:
+          # GitHub Actions 의 GITHUB_TOKEN 으로 커밋·푸시
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

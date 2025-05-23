@@ -16,9 +16,23 @@ const RAW_DIR = path.join(__dirname, 'raw_corpus');
 const OUT_DIR = path.join(__dirname, 'training_samples');
 const ERR_DIR = path.join(__dirname, 'structurizer_errors');
 
+const SECTION_INFO = {
+  title: { dir: 'title', prefix: 'ti_' },
+  firstParagraph: { dir: 'firstparagraph', prefix: 'fp_' },
+  mainContent: { dir: 'maincontent', prefix: 'mc_' },
+  usp: { dir: 'usp', prefix: 'usp_' },
+  closing: { dir: 'closing', prefix: 'cl_' },
+  story: { dir: 'story', prefix: 'story_' }
+};
+
 mkdirp.sync(RAW_DIR);
 mkdirp.sync(OUT_DIR);
 mkdirp.sync(ERR_DIR);
+
+// Ensure section directories exist
+for (const info of Object.values(SECTION_INFO)) {
+  mkdirp.sync(path.join(OUT_DIR, info.dir));
+}
 
 const SYSTEM_PROMPT = `당신은 블로그 글을 구조적으로 분해하는 AI입니다.
 사용자로부터 제공된 블로그 원고를 다음 6개 섹션으로 분리하세요:
@@ -47,10 +61,17 @@ Storytelling (고객 경험 기반 미니 에피소드)
 
 // Get the next numeric index based on existing training samples.
 function getNextIndex() {
-  const files = fs.readdirSync(OUT_DIR).filter(f => /^ti_\d{3}\.txt$/.test(f));
-  if (files.length === 0) return 1;
-  const nums = files.map(f => parseInt(f.match(/(\d{3})/)[0], 10));
-  return Math.max(...nums) + 1;
+  const nums = [];
+  for (const info of Object.values(SECTION_INFO)) {
+    const dirPath = path.join(OUT_DIR, info.dir);
+    if (!fs.existsSync(dirPath)) continue;
+    const files = fs.readdirSync(dirPath).filter(f => new RegExp(`^${info.prefix}\\d{3}\\.txt$`).test(f));
+    for (const f of files) {
+      const m = f.match(/(\d{3})/);
+      if (m) nums.push(parseInt(m[1], 10));
+    }
+  }
+  return nums.length ? Math.max(...nums) + 1 : 1;
 }
 
 // Parse GPT output into section map.
@@ -69,9 +90,12 @@ function parseSections(text) {
 }
 
 // Write one section to a file with the given prefix and index.
-function writeSection(prefix, index, content) {
+function writeSection(section, index, content) {
+  const info = SECTION_INFO[section];
+  if (!info) return;
+  const dir = path.join(OUT_DIR, info.dir);
   const idx = String(index).padStart(3, '0');
-  const filePath = path.join(OUT_DIR, `${prefix}${idx}.txt`);
+  const filePath = path.join(dir, `${info.prefix}${idx}.txt`);
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
@@ -93,12 +117,12 @@ async function processFile(file, index) {
     const sections = parseSections(content);
     if (!sections) throw new Error('GPT output parsing failed');
 
-    writeSection('ti_', index, sections.title);
-    writeSection('fp_', index, sections.firstParagraph);
-    writeSection('mc_', index, sections.mainContent);
-    writeSection('usp_', index, sections.usp);
-    writeSection('cl_', index, sections.closing);
-    writeSection('story_', index, sections.story);
+    writeSection('title', index, sections.title);
+    writeSection('firstParagraph', index, sections.firstParagraph);
+    writeSection('mainContent', index, sections.mainContent);
+    writeSection('usp', index, sections.usp);
+    writeSection('closing', index, sections.closing);
+    writeSection('story', index, sections.story);
 
     console.log(chalk.green(`Processed ${file}`));
     return true;

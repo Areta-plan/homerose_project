@@ -12,15 +12,18 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^5.4.1",
     "chokidar": "^4.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "inquirer": "^9.0.0",
+    "mkdirp": "^3.0.1",
     "multer": "^2.0.0",
+    "node-fetch": "^2.6.7",
     "openai": "^4.100.0",
     "p-limit": "^6.2.0",
-    "quickselect": "^3.0.0",
-    "node-fetch": "^2.6.7",
-    "inquirer": "^9.0.0"
+    "puppeteer": "^24.9.0",
+    "quickselect": "^3.0.0"
   }
 }

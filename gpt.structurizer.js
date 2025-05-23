@@ -6,7 +6,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mkdirp = require('mkdirp');
-const chalk = require('chalk');
+const chalk = require('chalk').default;
 const chokidar = require('chokidar');
 const { OpenAI } = require('openai');
 

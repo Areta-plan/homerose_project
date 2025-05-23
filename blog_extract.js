@@ -53,6 +53,38 @@ function cleanText(text) {
   text = text.replace(/\n{2,}/g, '\n');
   return text.trim();
 }
+
+// Extract the blog post title. Tries common selectors and falls back to the
+// page's <title> tag if none found.
+async function extractTitle(page, url) {
+  const domain = new URL(url).hostname;
+
+  if (domain.includes('naver.com')) {
+    try {
+      await page.waitForSelector('iframe#mainFrame', { timeout: 5000 });
+      const frame = page.frames().find(f => f.name() === 'mainFrame');
+      if (frame) {
+        const sel = '.se-title-text, h3.se_textarea';
+        const exists = await frame.$(sel);
+        if (exists) {
+          return frame.$eval(sel, el => el.innerText).catch(() => null);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const selectors = ['h1', 'header h1'];
+  for (const sel of selectors) {
+    const exists = await page.$(sel);
+    if (exists) {
+      return page.$eval(sel, el => el.innerText).catch(() => null);
+    }
+  }
+
+  return page.title();
+}
 // Extracts the main content element from the loaded page.
 // For Naver blogs, the real article is inside an iframe named "mainFrame".
 // For other sites, fall back to common article containers.
@@ -114,7 +146,10 @@ async function main() {
           const fileName = `blog_${String(nextIndex).padStart(3, '0')}.txt`;
           const filePath = path.join(outputDir, fileName);
 
-          fs.writeFileSync(filePath, text, 'utf8');
+          const title = (await extractTitle(page, url)) || '';
+          const output = `===title===\n${title}\n\n===body===\n${text}`;
+
+          fs.writeFileSync(filePath, output, 'utf8');
           console.log(chalk.green(`Saved ${url} -> ${fileName}`));
 
           nextIndex++;

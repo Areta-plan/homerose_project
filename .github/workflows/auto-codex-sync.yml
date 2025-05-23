@@ -44,7 +44,7 @@ jobs:
           node scripts/watch_and_finetune.js --build
           node -e "require('./scripts/watch_and_finetune').runFineTune()"
         env:
-          OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Commit & Push changes
         run: |

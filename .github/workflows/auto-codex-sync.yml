@@ -1,3 +1,9 @@
+permissions:
+  contents: write        # 코드 변경(커밋, 푸시) 허용
+  pull-requests: write   # PR 생성·수정 허용
+
+on:
+  workflow_dispatch:
 name: Codex 자동 PR 생성
 
 permissions:
@@ -24,17 +30,12 @@ jobs:
                   "max_tokens": 500
                 }' > generated.txt
 
-      - name: src 폴더 준비 & 파일 이동
-        run: |
-          mkdir -p src
-          mv generated.txt src/new_code.js || true
-
-      - name: 자동으로 Pull Request 만들기
-        uses: peter-evans/create-pull-request@v4
-        with:
-          branch: codex-update-${{ github.run_number }}
-          commit-message: "Codex 업데이트: 코드 생성/수정"
-          title: "🤖 Codex 자동 업데이트 PR"
-          body: |
-            이 PR은 Codex가 자동으로 생성·수정한 코드를 담고 있습니다.
-          skip-empty-diff: true
+- name: 자동으로 Pull Request 만들기
+  uses: peter-evans/create-pull-request@v4
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}       # ← 여기 꼭 추가!
+    branch: codex-update-${{ github.run_number }}
+    commit-message: "Codex 업데이트: 코드 생성/수정"
+    title: "🤖 Codex 자동 업데이트 PR"
+    body: |
+      이 PR은 Codex가 자동으로 생성·수정한 코드를 담고 있습니다.

@@ -31,6 +31,20 @@ async function generateTags(prefix, text) {
   }
 }
 
+function parseTagsString(str) {
+  const map = {};
+  const regex = /\[([^\[\]]+)\]/g;
+  let m;
+  while ((m = regex.exec(str))) {
+    const parts = m[1].split(':');
+    if (parts.length < 2) continue;
+    const key = parts.shift().trim();
+    const value = parts.join(':').trim();
+    map[key] = value;
+  }
+  return map;
+}
+
 function getPrefix(file) {
   const m = path.basename(file).match(/^(.*?_)/);
   return m ? m[1] : null;
@@ -38,22 +52,54 @@ function getPrefix(file) {
 
 async function processFile(filePath) {
   try {
-    const data = fs.readFileSync(filePath, 'utf8');
-    const lines = data.split(/\r?\n/);
-    if (lines[0].startsWith('//')) return; // already tagged
+    let data = fs.readFileSync(filePath, 'utf8');
+    let lines = data.split(/\r?\n/);
 
     const prefix = getPrefix(filePath);
     if (!prefix) return;
-    const body = data.trim();
+
+    let tagLine = null;
+    if (lines[0].startsWith('//')) {
+      tagLine = lines.shift().slice(2).trim();
+    }
+
+    const body = lines.join('\n').trim();
     if (!body) {
       console.log(chalk.red(`❌ Empty content: ${filePath}`));
       return;
     }
 
-    const tags = await generateTags(prefix, body);
-    if (!tags) return;
+    if (!tagLine) {
+      tagLine = await generateTags(prefix, body);
+      if (!tagLine) return;
+    }
 
-    lines.unshift(`// ${tags}`);
+    const tagMap = parseTagsString(tagLine);
+
+    const userIdx = lines.indexOf('===user===');
+    const assistantIdx = lines.indexOf('===assistant===');
+    if (userIdx === -1 || assistantIdx === -1) {
+      console.log(chalk.red(`❌ Invalid format: ${filePath}`));
+      return;
+    }
+
+    // Remove any stray lines before the user section
+    if (userIdx > 0) {
+      lines = lines.slice(userIdx);
+    }
+
+    // Recompute indices after possible slice
+    const startIdx = lines.indexOf('===user===');
+    const endIdx = lines.indexOf('===assistant===');
+
+    for (let i = startIdx + 1; i < endIdx; i++) {
+      const match = lines[i].match(/^\[([^:]+):\s*\]/);
+      if (match) {
+        const key = match[1].trim();
+        if (tagMap[key]) lines[i] = `[${key}: ${tagMap[key]}]`;
+      }
+    }
+
     fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
     console.log(chalk.green(`Tagged ${filePath}`));
   } catch (err) {
@@ -75,4 +121,8 @@ async function main() {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main };

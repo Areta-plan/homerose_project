@@ -1,31 +1,36 @@
-+name: Codex → GitHub 자동업데이트
+name: Codex 자동 PR 생성
 
-+on:
-+  workflow_dispatch:   # 이 설정 하나로, "Actions" 탭에서 'Run workflow' 버튼으로 언제든 수동 실행 가능
+# 수동으로 실행하거나, 원하는 이벤트에 맞춰 바꿔도 됩니다.
+on:
+  workflow_dispatch:
 
-+jobs:
-   update-code:
-     runs-on: ubuntu-latest
-     steps:
-       - uses: actions/checkout@v3
-       - name: Codex로 코드 생성
-         run: |
-           curl https://api.openai.com/v1/completions \
-             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-             -H "Content-Type: application/json" \
-             -d '{
-                   "model": "code-davinci-002",
-                   "prompt": "여기에 실행하고 싶은 작업을 한두 문장으로 적으세요",
-                   "max_tokens": 500
-                 }' \
-             > generated.txt
-       - name: 파일 정리
-         run: |
-           mv generated.txt src/new_code.js || true
-       - name: 변경 커밋 & 푸시
-         run: |
-           git config user.name "github-actions[bot]"
-           git config user.email "github-actions[bot]@users.noreply.github.com"
-           git add .
-           git diff --quiet && echo "변경 없음" || git commit -m "자동 업데이트: Codex 생성 코드"
-           git push
+jobs:
+  generate-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      # 1) 현재 코드 내려받기
+      - uses: actions/checkout@v3
+
+      # 2) Codex API 호출해서 코드 생성·수정
+      - name: Codex로 코드 생성
+        run: |
+          curl https://api.openai.com/v1/completions \
+            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+                  "model": "code-davinci-002",
+                  "prompt": "여기에 작업 지시문을 한두 문장으로 써주세요",
+                  "max_tokens": 500
+                }' > generated.txt
+          mv generated.txt src/new_code.js || true
+
+      # 3) 변경된 파일을 새 브랜치에 커밋하고 PR 만들기
+      - name: 자동으로 Pull Request 만들기
+        uses: peter-evans/create-pull-request@v4
+        with:
+          # 브랜치 이름 규칙: codex-update-<숫자>
+          branch: codex-update-${{ github.run_number }}
+          commit-message: "Codex 업데이트: 코드 생성/수정"
+          title: "🤖 Codex 자동 업데이트 PR"
+          body: |
+            이 PR은 Codex가 자동으로 생성·수정한 코드를 담고 있습니다.

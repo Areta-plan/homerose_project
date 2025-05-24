@@ -1,5 +1,18 @@
 name: Codex 자동 PR 생성
 
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      … # 생략
+
 # 수동으로 실행하거나, 원하는 이벤트에 맞춰 바꿔도 됩니다.
 on:
   workflow_dispatch:

@@ -1,24 +1,21 @@
-permissions:
-  contents: write        # 코드 변경(커밋, 푸시) 허용
-  pull-requests: write   # PR 생성·수정 허용
-
-on:
-  workflow_dispatch:
-name: Codex 자동 PR 생성
+name: Auto Codex Sync
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write        # 커밋·푸시 허용
+  pull-requests: write   # PR 생성 허용
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:     # 수동 실행 트리거
 
 jobs:
   generate-and-pr:
     runs-on: ubuntu-latest
+
     steps:
+      # 1. 코드 내려받기
       - uses: actions/checkout@v3
 
+      # 2. Codex API 호출
       - name: Codex로 코드 생성
         run: |
           curl https://api.openai.com/v1/completions \
@@ -30,12 +27,19 @@ jobs:
                   "max_tokens": 500
                 }' > generated.txt
 
-- name: 자동으로 Pull Request 만들기
-  uses: peter-evans/create-pull-request@v4
-  with:
-    token: ${{ secrets.GITHUB_TOKEN }}       # ← 여기 꼭 추가!
-    branch: codex-update-${{ github.run_number }}
-    commit-message: "Codex 업데이트: 코드 생성/수정"
-    title: "🤖 Codex 자동 업데이트 PR"
-    body: |
-      이 PR은 Codex가 자동으로 생성·수정한 코드를 담고 있습니다.
+      # 3. 폴더 만들고 파일 이동 (없어도 실패 안 함)
+      - name: src 폴더 준비 & 파일 이동
+        run: |
+          mkdir -p src
+          mv generated.txt src/new_code.js || true
+
+      # 4. 자동 Pull Request 생성
+      - name: 자동으로 Pull Request 만들기
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: codex-update-${{ github.run_number }}
+          commit-message: "Codex 업데이트: 코드 생성/수정"
+          title: "🤖 Codex 자동 업데이트 PR"
+          body: |
+            이 PR은 Codex가 자동으로 생성·수정한 코드를 담고 있습니다.

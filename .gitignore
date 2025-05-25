@@ -1,3 +1,6 @@
 .env
 homerose_project.git/
 training_data/*.jsonl
+node_modules/
+dist/
+build/

@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const OpenAI = require('openai');
+const { getOpenAIClient } = require('./lib/openaiClient');
+const { createHash, chunkText, cosineSimilarity } = require('./lib/utils');
+const { LRUCache } = require('./lib/cacheManager');
 let pLimit;
 try {
   pLimit = require('p-limit');
@@ -12,27 +13,20 @@ try {
   throw new Error('p-limit 모듈을 찾을 수 없습니다. npm install p-limit 로 설치하세요.');
 }
 
-// 설정 상수
-const EMBEDDING_MODEL = 'text-embedding-ada-002';
+// 설정 상수 (환경변수로 오버라이드 가능)
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-ada-002';
 const KNOWLEDGE_DIR = path.join(__dirname, 'knowledge');
 const CACHE_PATH = path.join(__dirname, 'chunksCache.json');
-const CONCURRENCY = 5;          // 병렬 임베딩 요청 제한
-const CHUNK_SIZE = 1000;        // 청크 크기 (문자 수)
-const CHUNK_OVERLAP = 200;      // 청크 겹침 문자 수
+const CONCURRENCY = parseInt(process.env.EMBEDDING_CONCURRENCY) || 3; // 요청 한도 고려하여 3으로 낮춤
+const CHUNK_SIZE = parseInt(process.env.CHUNK_SIZE) || 1000;
+const CHUNK_OVERLAP = parseInt(process.env.CHUNK_OVERLAP) || 200;
+const MAX_CHUNKS_IN_MEMORY = parseInt(process.env.MAX_CHUNKS_IN_MEMORY) || 10000; // 메모리 제한
 
-// 벡터 저장 공간
+// 벡터 저장 공간 - LRU 캐시 구현
 let chunks = [];
+const chunkCache = new LRUCache(MAX_CHUNKS_IN_MEMORY);
 
-// 두 벡터 간 코사인 유사도 계산
-function cosineSimilarity(a, b) {
-  let dot = 0.0, magA = 0.0, magB = 0.0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB) + 1e-8);
-}
+// utils.js에서 가져오므로 제거
 
 // 캐시 로드
 function loadCache() {
@@ -49,27 +43,19 @@ function saveCache(cache) {
   fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8');
 }
 
-// 문자열 청크 분할 (슬라이딩 윈도우)
-function chunkText(text) {
-  const step = CHUNK_SIZE - CHUNK_OVERLAP;
-  const result = [];
-  for (let start = 0; start < text.length; start += step) {
-    const end = Math.min(start + CHUNK_SIZE, text.length);
-    result.push(text.slice(start, end));
-    if (end === text.length) break;
-  }
-  return result;
-}
+// utils.js에서 가져오므로 제거
 
-// 파일 내용 해시 계산
-function hashContent(content) {
-  return crypto.createHash('sha256').update(content).digest('hex');
-}
+// utils.js에서 가져오므로 제거
 
 // 벡터 스토어 초기화: 캐시 활용 + 신규/변경 청크만 임베딩
 async function initializeVectorStore(apiKey) {
   console.log('➡️ [vectorStore] initializing...');
-  const openai = new OpenAI({ apiKey });
+  
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY가 필요합니다.');
+  }
+  
+  const openai = getOpenAIClient();
   const cache = loadCache();
   const oldHashes = cache.fileHashes;
   const oldChunks = cache.chunks || [];
@@ -93,49 +79,79 @@ async function initializeVectorStore(apiKey) {
       const relPath = path.join(mod, file);
       const fullPath = path.join(dirPath, file);
       const content = fs.readFileSync(fullPath, 'utf8');
-      const hash = hashContent(content);
+      const hash = createHash(content);
       newFileHashes[relPath] = hash;
       if (oldHashes[relPath] === hash) {
         oldChunks.filter(c => c.source === relPath).forEach(c => keptChunks.push(c));
       } else {
-        chunkText(content).forEach((txt, idx) => {
+        chunkText(content, CHUNK_SIZE, CHUNK_OVERLAP).forEach((txt, idx) => {
           toEmbed.push({ source: relPath, category: mod, text: txt, sliceIndex: idx });
         });
       }
     }
   }
 
-  // 병렬 임베딩
-    // Limit the concurrency of embedding requests
- const limitFn = pLimit(CONCURRENCY);
+  // 병렬 임베딩 with 에러 핸들링
+  const limitFn = pLimit(CONCURRENCY);
   const embedTasks = toEmbed.map(ci => limitFn(async () => {
-    const res = await openai.embeddings.create({ model: EMBEDDING_MODEL, input: ci.text });
-    return {
-      id: `${ci.source}#${ci.sliceIndex}`,
-      source: ci.source,
-      category: ci.category,
-      text: ci.text,
-      embedding: res.data[0].embedding
-    };
+    try {
+      const res = await openai.embeddings.create({ 
+        model: EMBEDDING_MODEL, 
+        input: ci.text.slice(0, 8000) // 토큰 제한 고려
+      });
+      return {
+        id: `${ci.source}#${ci.sliceIndex}`,
+        source: ci.source,
+        category: ci.category,
+        text: ci.text,
+        embedding: res.data[0].embedding,
+        lastAccessed: Date.now()
+      };
+    } catch (err) {
+      console.error(`임베딩 실패 [${ci.source}#${ci.sliceIndex}]:`, err.message);
+      return null; // 실패한 청크는 제외
+    }
   }));
-  const newChunks = await Promise.all(embedTasks);
+  const embedResults = await Promise.all(embedTasks);
+  const newChunks = embedResults.filter(Boolean); // null 제거
 
-  // 최종 chunks 갱신 & 캐시 저장
+  // 최종 chunks 갱신 & 메모리 관리
   chunks = [...keptChunks, ...newChunks];
+  
+  // 메모리 제한 적용
+  if (chunks.length > MAX_CHUNKS_IN_MEMORY) {
+    console.warn(`⚠️ 청크 수(${chunks.length})가 메모리 제한(${MAX_CHUNKS_IN_MEMORY})을 초과합니다. 최신 청크만 유지합니다.`);
+    chunks = chunks.slice(-MAX_CHUNKS_IN_MEMORY);
+  }
+  
   saveCache({ fileHashes: newFileHashes, chunks });
-  console.log(`✅ [vectorStore] ready with ${chunks.length} chunks`);
+  console.log(`✅ [vectorStore] ready with ${chunks.length} chunks (memory limit: ${MAX_CHUNKS_IN_MEMORY})`);
 }
 
-// 카테고리별 Top-K 청크 추출
+// 카테고리별 Top-K 청크 추출 (캐시 최적화)
 function getTopKChunksByCategory(queryEmbedding, category, topK = 3) {
+  const cacheKey = `${category || 'all'}_${queryEmbedding.slice(0, 10).join('')}_${topK}`;
+  
+  // 캐시 확인
+  const cached = chunkCache.get(cacheKey);
+  if (cached) return cached;
+  
   const filtered = category
     ? chunks.filter(c => c.category === category)
     : chunks;
-  return filtered
-    .map(c => ({ text: c.text, score: cosineSimilarity(c.embedding, queryEmbedding) }))
+  
+  const result = filtered
+    .map(c => ({ 
+      text: c.text, 
+      score: cosineSimilarity(c.embedding, queryEmbedding) 
+    }))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
     .map(c => c.text);
+  
+  // 결과 캐시
+  chunkCache.set(cacheKey, result);
+  return result;
 }
 
 // 별칭: 전체 청크 대상으로 Top-K 뽑기

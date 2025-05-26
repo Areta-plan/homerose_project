@@ -8,6 +8,7 @@ const simpleGit = require('simple-git');
 const repoDir = path.resolve(__dirname, '..');
 const git = simpleGit(repoDir);
 
+<<<<<<< HEAD
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log('🔄 주기적 pull 시작…');
@@ -22,6 +23,19 @@ await git.raw([
     console.error('❌ pull 실패:', e.message);
   }
 });
+=======
+// 자동 Git 동기화 비활성화
+// 사용자가 수동으로 commit/push/pull 수행
+// cron.schedule('*/5 * * * *', async () => {
+//   try {
+//     console.log('🔄 주기적 pull 시작…');
+//     await git.pull(process.env.GITHUB_REMOTE || 'origin', process.env.GITHUB_BRANCH || 'master');
+//     console.log('✅ 원격 변경사항 로컬 반영 완료');
+//   } catch (e) {
+//     console.error('❌ pull 실패:', e.message);
+//   }
+// });
+>>>>>>> 1d157cc (Auto deploy $(Get-Date -Format yyyy-MM-dd HH:mm:ss))
 
 // OpenAI SDK v4 (CommonJS) 사용
 let openai;
@@ -273,7 +287,9 @@ if (require.main === module) {
     debounceTimer = setTimeout(async () => {
       buildJsonl();
       await runFineTune();
-      await syncGit();
+      // 자동 Git 동기화 비활성화
+      // await syncGit();
+      console.log('✅ 파인튤닝 완료. Git 커밋은 수동으로 수행하세요.');
     }, 5000);
   }
   watcher.on('add', onChange).on('change', onChange).on('unlink', onChange);

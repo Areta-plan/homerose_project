@@ -1,12 +1,10 @@
 // services/chatService.js
 const fs = require('fs');
 const path = require('path');
-const OpenAI = require('openai');
 const { SYSTEM_PROMPT } = require('../prompts');
 const { getTopKChunksByCategory, getTopKChunks } = require('../vectorStore');
 const { webSearch } = require('./webSearch');
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { getOpenAIClient } = require('../lib/openaiClient');
 
 // 최신 파인튜닝 모델 ID 읽기 (자동 학습 후 latest_model.txt에 저장)
 function getLatestModel() {
@@ -22,13 +20,16 @@ function getLatestModel() {
  * 단순 메시지 처리: /ask 엔드포인트용
  */
 async function handleChatRequest(userMessage) {
-  const model = getLatestModel();
-  // 1) 임베딩 생성
-  const { data } = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: userMessage
-  });
-  const embedding = data[0].embedding;
+  try {
+    const openai = getOpenAIClient();
+    const model = getLatestModel();
+    
+    // 1) 임베딩 생성
+    const { data } = await openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: userMessage
+    });
+    const embedding = data[0].embedding;
 
   // 2) RAG 청크 추출
   const chunks = getTopKChunks(embedding, 3);
@@ -45,7 +46,6 @@ async function handleChatRequest(userMessage) {
     { role: 'user',   content: userMessage }
   ];
   console.log('Final Messages (/ask):', messages);
-  try {
     const resp = await openai.chat.completions.create({
       model,
       messages,
@@ -56,7 +56,13 @@ async function handleChatRequest(userMessage) {
     });
     return resp.choices[0].message.content;
   } catch (err) {
-    console.error('[/ask] OpenAI call failed:', err);
+    console.error('[/ask] OpenAI call failed:', err.response?.data || err.message);
+    
+    if (err.code === 'insufficient_quota') {
+      throw new Error('OpenAI API 할당량이 부족합니다. 계정을 확인해주세요.');
+    } else if (err.code === 'rate_limit_exceeded') {
+      throw new Error('API 호출 한도에 도달했습니다. 잠시 후 다시 시도해주세요.');
+    }
     throw new Error('OpenAI 응답 생성 중 오류가 발생했습니다.');
   }
 }
@@ -65,15 +71,17 @@ async function handleChatRequest(userMessage) {
  * 대화 히스토리 처리: /chat 엔드포인트용
  */
 async function handleChatHistoryRequest(messages, references = []) {
-  const model = getLatestModel();
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  if (!lastUser) throw new Error('사용자 메시지가 필요합니다.');
+  try {
+    const openai = getOpenAIClient();
+    const model = getLatestModel();
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    if (!lastUser) throw new Error('사용자 메시지가 필요합니다.');
 
-  const { data } = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: lastUser.content
-  });
-  const embedding = data[0].embedding;
+    const { data } = await openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: lastUser.content
+    });
+    const embedding = data[0].embedding;
 
   const chunks = getTopKChunks(embedding, 3);
   const knowledgeContext = chunks.join('\n\n');
@@ -88,7 +96,6 @@ async function handleChatHistoryRequest(messages, references = []) {
     console.log('[chatService] uploaded references:', references.map(f => f.originalname));
   }
 
-  try {
     console.log('Final Messages (/chat):', finalMessages);
     const resp = await openai.chat.completions.create({
       model,
@@ -100,7 +107,13 @@ async function handleChatHistoryRequest(messages, references = []) {
     });
     return resp.choices[0].message.content;
   } catch (err) {
-    console.error('[/chat] OpenAI call failed:', err);
+    console.error('[/chat] OpenAI call failed:', err.response?.data || err.message);
+    
+    if (err.code === 'insufficient_quota') {
+      throw new Error('OpenAI API 할당량이 부족합니다. 계정을 확인해주세요.');
+    } else if (err.code === 'rate_limit_exceeded') {
+      throw new Error('API 호출 한도에 도달했습니다. 잠시 후 다시 시도해주세요.');
+    }
     throw new Error('대화 응답 생성 중 오류가 발생했습니다.');
   }
 }
@@ -109,20 +122,22 @@ async function handleChatHistoryRequest(messages, references = []) {
  * 블로그 초안 생성: /blog 엔드포인트용
  */
 async function handleBlogRequest({ topic, mode, userParams }) {
-  const model = getLatestModel();
+  try {
+    const openai = getOpenAIClient();
+    const model = getLatestModel();
 
-  // 1) 웹 검색
-  const results = await webSearch(`${topic} 최신 트렌드`, 3);
-  const searchContext = results
-    .map((r, i) => `${i+1}. ${r.title}\n${r.snippet}\n(${r.link})`)
-    .join('\n\n');
+    // 1) 웹 검색
+    const results = await webSearch(`${topic} 최신 트렌드`, 3);
+    const searchContext = results
+      .map((r, i) => `${i+1}. ${r.title}\n${r.snippet}\n(${r.link})`)
+      .join('\n\n');
 
-  // 2) 주제 임베딩
-  const qEmb = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: topic
-  });
-  const emb = qEmb.data[0].embedding;
+    // 2) 주제 임베딩
+    const qEmb = await openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: topic
+    });
+    const emb = qEmb.data[0].embedding;
 
   // 3) 모듈별 RAG 컨텍스트
   const titlesCtx   = getTopKChunksByCategory(emb, 'titles', 3);
@@ -172,8 +187,7 @@ ${closingCtx.join('\n\n')}
 5. Emotional/Impactful Closing
 `.trim();
 
-  // 4) GPT 호출
-  try {
+    // 4) GPT 호출
     const resp = await openai.chat.completions.create({
       model,
       messages: [
@@ -187,7 +201,13 @@ ${closingCtx.join('\n\n')}
     });
     return resp.choices[0].message.content;
   } catch (err) {
-    console.error('[/blog] OpenAI call failed:', err);
+    console.error('[/blog] OpenAI call failed:', err.response?.data || err.message);
+    
+    if (err.code === 'insufficient_quota') {
+      throw new Error('OpenAI API 할당량이 부족합니다. 계정을 확인해주세요.');
+    } else if (err.code === 'rate_limit_exceeded') {
+      throw new Error('API 호출 한도에 도달했습니다. 잠시 후 다시 시도해주세요.');
+    }
     throw new Error('블로그 초안 생성 중 오류가 발생했습니다.');
   }
 }
